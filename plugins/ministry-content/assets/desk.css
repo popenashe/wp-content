@@ -241,6 +241,18 @@ body.mom-desk-ui .mom-top summary,
   font-size: 12px;
 }
 .mom-who small { display: block; color: #b7c0d2; font-weight: 500; font-size: 11px; }
+.mom-logout {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+.mom-logout:hover { background: rgba(255, 255, 255, 0.08); }
 .mom-new { position: relative; }
 .mom-new summary {
   list-style: none;
@@ -698,6 +710,7 @@ body.login #backtoblog { width: 50%; text-align: right; }
   body.mom-desk-ui .mom-new,
   body.mom-desk-ui .mom-lang,
   body.mom-desk-ui .mom-top a.mom-who { display: none; }
+  body.mom-desk-ui .mom-logout { padding: 6px 8px; }
   body.mom-desk-ui .mom-brand-short { display: inline; }
   .mom-only-desk { display: none; }
   .mom-only-phone { display: block; }

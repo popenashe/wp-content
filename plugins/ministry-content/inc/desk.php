@@ -85,6 +85,16 @@ function ministry_desk_is_desk_screen() {
 }
 
 /**
+ * Wordfence dashboard URL when that plugin is loaded, otherwise empty.
+ */
+function ministry_desk_wordfence_url() {
+	if ( ! defined( 'WORDFENCE_VERSION' ) ) {
+		return '';
+	}
+	return admin_url( 'admin.php?page=Wordfence' );
+}
+
+/**
  * Hide the WordPress menus the mockups keep off the staff sidebar.
  */
 function ministry_desk_hide_stock_menus() {
@@ -316,6 +326,7 @@ function ministry_desk_icon( $name ) {
 		'search'    => '<circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/>',
 		'bell'      => '<path d="M6 16V11a6 6 0 1 1 12 0v5l1 2H5l1-2z"/><path d="M10 19a2 2 0 0 0 4 0"/>',
 		'plus'      => '<path d="M12 5v14M5 12h14"/>',
+		'logout'    => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
 	);
 	$inner = isset( $paths[ $name ] ) ? $paths[ $name ] : $paths['doc'];
 	return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' . $inner . '</svg>';

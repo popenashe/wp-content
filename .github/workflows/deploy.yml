@@ -43,3 +43,30 @@ jobs:
           port: 21
           local-dir: ./plugins/ministry-engage/
           server-dir: /public_html/wp-content/plugins/ministry-engage/
+
+      - name: Deploy Wordfence
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./plugins/wordfence/
+          server-dir: /public_html/wp-content/plugins/wordfence/
+          exclude: |
+            wflogs/**
+            **/wflogs/**
+
+      # Unique state-name so this step cannot sync-delete WordPress core in /public_html/.
+      - name: Deploy PHP upload limits
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./deploy/public_html/
+          server-dir: /public_html/
+          state-name: .ftp-deploy-userini-state.json

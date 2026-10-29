@@ -1044,7 +1044,6 @@ function ministry_desk_save_facts() {
 			'assistantEnabled'   => ( isset( $_POST['assistantEnabled'] ) && '1' === (string) wp_unslash( $_POST['assistantEnabled'] ) ) ? '1' : '0',
 			'assistantScriptUrl' => $assistant_url,
 			'assistantTenant'    => sanitize_text_field( isset( $_POST['assistantTenant'] ) ? wp_unslash( $_POST['assistantTenant'] ) : '' ),
-			'googleMapsApiKey'   => sanitize_text_field( isset( $_POST['googleMapsApiKey'] ) ? wp_unslash( $_POST['googleMapsApiKey'] ) : '' ),
 			'whatsappNumber'     => sanitize_text_field( isset( $_POST['whatsappNumber'] ) ? wp_unslash( $_POST['whatsappNumber'] ) : '' ),
 			'downloadsEnabled'   => ( isset( $_POST['downloadsEnabled'] ) && '1' === (string) wp_unslash( $_POST['downloadsEnabled'] ) ) ? '1' : '0',
 		)

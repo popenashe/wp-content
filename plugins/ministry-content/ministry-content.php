@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Ministry Content
  * Description: News, events, departments, documents, and site settings for the Ministry of Mines portal.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Ministry of Mines and Mining Development
  * Text Domain: ministry-content
  *

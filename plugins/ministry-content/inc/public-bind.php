@@ -1390,6 +1390,9 @@ function ministry_front_office_card_map( $card, $posts ) {
 		$town    = (string) get_post_meta( $post->ID, '_mom_town', true );
 		$lat     = (string) get_post_meta( $post->ID, '_mom_lat', true );
 		$lng     = (string) get_post_meta( $post->ID, '_mom_lng', true );
+		if ( '' === $town && '1' === (string) get_post_meta( $post->ID, '_mom_centre', true ) ) {
+			$town = 'Harare';
+		}
 		if ( '' === $title ) {
 			$title = $post->post_title;
 		}
@@ -1403,6 +1406,7 @@ function ministry_front_office_card_map( $card, $posts ) {
 	$query = ministry_front_maps_query( $title, $address, $town );
 	$href  = ministry_front_maps_link( $query, $lat, $lng );
 	$inner = ministry_front_maps_preview_inner( $title, $query, $lat, $lng );
+	ministry_front_maps_mark_needed();
 	$preview = '<a class="map-preview" href="' . esc_url( $href ) . '" target="_blank" rel="noopener" aria-label="' . esc_attr( sprintf( __( 'Open %s in Google Maps', 'ministry-content' ), $title ) ) . '">' . $inner . '</a>';
 	$card    = preg_replace( '#href="https://www\.openstreetmap\.org/search\?query=[^"]*"#', 'href="' . esc_url( $href ) . '"', $card );
 	if ( preg_match( '#<a class="map-preview"[^>]*>.*?</a>#s', $card ) ) {
@@ -1495,38 +1499,85 @@ function ministry_front_maps_coords( $lat, $lng ) {
  * @param string $lng   Longitude.
  */
 function ministry_front_maps_preview_inner( $label, $query, $lat, $lng ) {
-	$image = ministry_front_maps_image( $query, $lat, $lng );
-	if ( $image ) {
-		return '<div class="map-ph has-map"><img src="' . esc_url( $image ) . '" alt="' . esc_attr( sprintf( __( 'Map of %s', 'ministry-content' ), $label ) ) . '" width="600" height="220" loading="lazy">' . ( $label ? '<b>' . esc_html( $label ) . '</b>' : '' ) . '</div>';
+	$point = ministry_front_maps_point( $query, $lat, $lng );
+	if ( $point ) {
+		return '<div class="map-ph has-map" data-map-thumb data-lat="' . esc_attr( sprintf( '%.6F', $point[0] ) ) . '" data-lng="' . esc_attr( sprintf( '%.6F', $point[1] ) ) . '" data-zoom="' . esc_attr( (string) $point[2] ) . '"><div class="map-thumb" role="presentation"></div><span class="map-attr">© OpenFreeMap</span>' . ( $label ? '<b>' . esc_html( $label ) . '</b>' : '' ) . '</div>';
 	}
 	return '<div class="map-ph"><span class="pin"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span>' . ( $label ? '<b>' . esc_html( $label ) . '</b>' : '' ) . '</div>';
 }
 
 /**
- * Google Static Maps URL, or empty until a key is saved.
- *
  * @param string $query Search text.
  * @param string $lat   Latitude.
  * @param string $lng   Longitude.
+ * @return array{0: float, 1: float, 2: int}|null
  */
-function ministry_front_maps_image( $query, $lat, $lng ) {
-	$key = isset( ministry_settings()['googleMapsApiKey'] ) ? trim( (string) ministry_settings()['googleMapsApiKey'] ) : '';
-	if ( '' === $key ) {
-		return '';
-	}
+function ministry_front_maps_point( $query, $lat, $lng ) {
 	$coords = ministry_front_maps_coords( $lat, $lng );
-	$center = $coords ? $coords[0] . ',' . $coords[1] : $query;
-	$args   = array(
-		'size'    => '600x220',
-		'scale'   => '2',
-		'zoom'    => '15',
-		'maptype' => 'roadmap',
-		'center'  => $center,
-		'markers' => 'color:0x1B2A4E|' . $center,
-		'key'     => $key,
-	);
-	return 'https://maps.googleapis.com/maps/api/staticmap?' . http_build_query( $args, '', '&', PHP_QUERY_RFC3986 );
+	if ( $coords ) {
+		return array( $coords[0], $coords[1], 15 );
+	}
+	$guess = ministry_front_maps_guess_coords( $query );
+	if ( $guess ) {
+		return array( $guess[0], $guess[1], 13 );
+	}
+	return null;
 }
+
+/**
+ * Town-level pin when an office has no saved coordinates.
+ *
+ * @param string $query Search text.
+ * @return array{0: float, 1: float}|null
+ */
+function ministry_front_maps_guess_coords( $query ) {
+	$hay = strtolower( $query );
+	$places = array(
+		'zimre'     => array( -17.8316, 31.0448 ),
+		'mutare'    => array( -18.9707, 32.6709 ),
+		'bindura'   => array( -17.3019, 31.3306 ),
+		'marondera' => array( -18.1853, 31.5519 ),
+		'chinhoyi'  => array( -17.3667, 30.2000 ),
+		'masvingo'  => array( -20.0744, 30.8327 ),
+		'bulawayo'  => array( -20.1486, 28.5806 ),
+		'gwanda'    => array( -20.9333, 29.0000 ),
+		'gweru'     => array( -19.4500, 29.8167 ),
+		'harare'    => array( -17.8292, 31.0522 ),
+	);
+	foreach ( $places as $name => $coords ) {
+		if ( str_contains( $hay, $name ) ) {
+			return $coords;
+		}
+	}
+	return null;
+}
+
+/**
+ * Remember that the Offices page needs MapLibre.
+ */
+function ministry_front_maps_mark_needed() {
+	$GLOBALS['ministry_front_maps'] = true;
+}
+
+/**
+ * OpenFreeMap (MapLibre) assets for office thumbnails.
+ */
+function ministry_front_maps_assets() {
+	global $wp;
+	$path = isset( $wp->request ) ? trim( (string) $wp->request, '/' ) : '';
+	if ( empty( $GLOBALS['ministry_front_maps'] ) && 'offices' !== $path ) {
+		return;
+	}
+	$ver = '5.6.1';
+	$css = MINISTRY_CONTENT_DIR . 'assets/maps.css';
+	$js  = MINISTRY_CONTENT_DIR . 'assets/maps.js';
+	wp_enqueue_style( 'maplibre-gl', 'https://cdn.jsdelivr.net/npm/maplibre-gl@' . $ver . '/dist/maplibre-gl.css', array(), $ver );
+	wp_enqueue_style( 'ministry-maps', MINISTRY_CONTENT_URL . 'assets/maps.css', array( 'maplibre-gl' ), (string) filemtime( $css ) );
+	wp_enqueue_script( 'maplibre-gl', 'https://cdn.jsdelivr.net/npm/maplibre-gl@' . $ver . '/dist/maplibre-gl.js', array(), $ver, true );
+	wp_enqueue_script( 'ministry-maps', MINISTRY_CONTENT_URL . 'assets/maps.js', array( 'maplibre-gl' ), (string) filemtime( $js ), true );
+}
+
+add_action( 'wp_enqueue_scripts', 'ministry_front_maps_assets' );
 
 /**
  * @param string $body Body markup.

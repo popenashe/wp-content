@@ -63,10 +63,6 @@ function ministry_settings_tabs() {
 			'label' => 'Ask Assistant',
 			'keys'  => array( 'assistantEnabled', 'assistantScriptUrl', 'assistantTenant' ),
 		),
-		'maps' => array(
-			'label' => 'Google Maps',
-			'keys'  => array( 'googleMapsApiKey' ),
-		),
 	);
 }
 

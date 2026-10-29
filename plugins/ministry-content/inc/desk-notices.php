@@ -297,7 +297,14 @@ function ministry_desk_sidebar() {
 	}
 	echo '</nav><p class="mom-side-note">Hidden for staff: Appearance, Plugins, Tools, Comments. Users &amp; Roles: Administrators only.';
 	if ( ministry_desk_can( 'users' ) ) {
-		echo '<br><a href="' . esc_url( admin_url( 'admin.php?page=Wordfence' ) ) . '">Wordfence</a> · <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Plugins</a> · <a href="' . esc_url( admin_url( 'themes.php' ) ) . '">Appearance</a> · <a href="' . esc_url( admin_url( 'tools.php' ) ) . '">Tools</a>';
+		$wordfence = function_exists( 'ministry_desk_wordfence_url' ) ? ministry_desk_wordfence_url() : '';
+		echo '<br>';
+		if ( $wordfence ) {
+			echo '<a href="' . esc_url( $wordfence ) . '">Wordfence</a> · ';
+		} elseif ( file_exists( WP_PLUGIN_DIR . '/wordfence/wordfence.php' ) ) {
+			echo '<a href="' . esc_url( admin_url( 'plugins.php?s=wordfence&plugin_status=inactive' ) ) . '">Activate Wordfence</a> · ';
+		}
+		echo '<a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Plugins</a> · <a href="' . esc_url( admin_url( 'themes.php' ) ) . '">Appearance</a> · <a href="' . esc_url( admin_url( 'tools.php' ) ) . '">Tools</a>';
 	}
 	echo '</p></aside>';
 }
@@ -345,6 +352,7 @@ function ministry_desk_topbar() {
 	echo '</div></details>';
 	echo '<a class="mom-icon-btn" href="' . esc_url( ministry_desk_url( 'mom-desk' ) . '#waiting' ) . '" aria-label="Waiting for approval">' . ministry_desk_icon( 'bell' ) . ( $pending ? '<span class="mom-count">' . esc_html( (string) $pending ) . '</span>' : '' ) . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<a class="mom-who" href="' . esc_url( ministry_desk_can( 'users' ) ? ministry_desk_url( 'mom-users' ) : admin_url( 'profile.php' ) ) . '"><span class="mom-avatar">' . esc_html( ministry_desk_initials( $user ) ) . '</span><span>' . esc_html( $user->display_name ) . '<small>' . esc_html( ministry_desk_role_label( $user ) ) . '</small></span></a>';
+	echo '<a class="mom-logout" href="' . esc_url( wp_logout_url( wp_login_url() ) ) . '">' . ministry_desk_icon( 'logout' ) . ' Log out</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '</div></header>';
 }
 

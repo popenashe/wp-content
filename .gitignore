@@ -3,6 +3,9 @@
 !.github/
 !.github/**
 
+!deploy/
+!deploy/**
+
 !themes/
 themes/*
 !themes/ministry-mines/

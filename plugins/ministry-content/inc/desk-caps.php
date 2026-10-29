@@ -288,6 +288,13 @@ function ministry_desk_sync_roles() {
 			)
 		);
 	}
+	$admin = get_role( 'administrator' );
+	if ( $admin ) {
+		$admin->add_cap( 'activate_plugins' );
+		$admin->add_cap( 'update_plugins' );
+		$admin->add_cap( 'install_plugins' );
+		$admin->add_cap( 'manage_options' );
+	}
 }
 
 /**

@@ -699,7 +699,7 @@ function ministry_desk_screen_unit( $office ) {
 		echo '<div class="mom-grid-2">';
 		ministry_desk_field( 'Latitude', 'lat', $post ? (string) get_post_meta( $id, '_mom_lat', true ) : '' );
 		ministry_desk_field( 'Longitude', 'lng', $post ? (string) get_post_meta( $id, '_mom_lng', true ) : '' );
-		echo '</div><div class="mom-note mom-note-gold"><p>Drag the pin to the entrance by entering coordinates. Confirm the exact building location before publishing.</p></div></section>';
+		echo '</div><div class="mom-note mom-note-gold"><p>Latitude and longitude pin the OpenFreeMap thumbnail on the Offices page. Leave them blank to use the town centre. Clicking the thumbnail still opens Google Maps.</p></div></section>';
 		echo '<section class="mom-card" data-repeater><h2>Contact</h2>';
 		$phones = $post ? get_post_meta( $id, '_mom_phones', true ) : array();
 		if ( ! is_array( $phones ) || ! $phones ) {
@@ -1028,15 +1028,8 @@ function ministry_desk_screen_facts() {
 	ministry_desk_field( 'Script address', 'assistantScriptUrl', isset( $settings['assistantScriptUrl'] ) ? (string) $settings['assistantScriptUrl'] : '', array( 'type' => 'url', 'hint' => 'The widget.js file from the assistant host.' ) );
 	ministry_desk_field( 'Tenant', 'assistantTenant', isset( $settings['assistantTenant'] ) ? (string) $settings['assistantTenant'] : '', array( 'hint' => 'data-tenant on the embed, currently ministryofmines.' ) );
 	echo '</section>';
-	echo '<section class="mom-card" id="maps"><h2>Google Maps</h2>';
-	ministry_desk_field(
-		'Maps Static API key',
-		'googleMapsApiKey',
-		isset( $settings['googleMapsApiKey'] ) ? (string) $settings['googleMapsApiKey'] : '',
-		array(
-			'hint' => 'Leave empty until you have a key. Office cards stay clickable and open Google Maps; the photo preview appears after you add a Maps Static API key.',
-		)
-	);
+	echo '<section class="mom-card" id="maps"><h2>Maps</h2>';
+	echo '<p class="mom-hint">Office cards show an OpenFreeMap preview. Clicking a card or Map link still opens Google Maps. Add latitude and longitude on an office to pin the building; otherwise the town is used.</p>';
 	echo '</section>';
 	echo '<section class="mom-card" id="downloads"><h2>Downloads</h2>';
 	ministry_desk_field(

@@ -698,7 +698,13 @@ body.hc .page-hero .media img, body.hc .hero-slide img { filter: grayscale(1) co
 a.map-preview { display: block; color: inherit; text-decoration: none; }
 a.map-preview:hover .map-ph { filter: brightness(0.97); }
 .map-ph.has-map { background-image: none; padding: 0; overflow: hidden; }
-.map-ph.has-map img { width: 100%; height: 110px; object-fit: cover; display: block; }
+.map-ph.has-map img,
+.map-ph.has-map .map-thumb { width: 100%; height: 110px; object-fit: cover; display: block; }
+.map-ph.has-map .map-thumb { background: #E9EDF3; }
+.map-ph.has-map .maplibregl-map,
+.map-ph.has-map .maplibregl-canvas { width: 100% !important; height: 110px !important; pointer-events: none; }
+.map-ph .map-attr { position: absolute; left: 6px; bottom: 6px; z-index: 2; background: rgba(255,255,255,.88); font-size: 9px; line-height: 1.2; padding: 2px 5px; border-radius: 2px; color: #445; pointer-events: none; }
+.map-ph.has-map b { right: 8px; left: auto; z-index: 2; }
 .prov-card > a.map-preview { margin: -16px -16px 2px; }
 .ho-card .card-body { display: flex; flex-direction: column; gap: 8px; font-size: .85rem; flex: 1; }
 .ho-card .card-body h3 { margin: 0; color: var(--ink); }
