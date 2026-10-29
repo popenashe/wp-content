@@ -370,6 +370,150 @@ function ministry_albums() {
 }
 
 /**
+ * Album IDs a gallery photo belongs to.
+ *
+ * @param int $photo_id Attachment ID.
+ * @return int[]
+ */
+function ministry_photo_album_ids( $photo_id ) {
+	$ids = get_post_meta( $photo_id, '_mom_album_ids', true );
+	if ( ! is_array( $ids ) ) {
+		$ids = array();
+	}
+	return array_values( array_filter( array_map( 'absint', $ids ) ) );
+}
+
+/**
+ * Mark a photo as part of the public gallery.
+ *
+ * @param int $photo_id Attachment ID.
+ */
+function ministry_photo_mark_gallery( $photo_id ) {
+	update_post_meta( $photo_id, '_mom_gallery', '1' );
+}
+
+/**
+ * Add a photo to an album's ordered list.
+ *
+ * @param int $photo_id Attachment ID.
+ * @param int $album_id Album ID.
+ */
+function ministry_photo_add_to_album( $photo_id, $album_id ) {
+	$photo_id = (int) $photo_id;
+	$album_id = (int) $album_id;
+	if ( ! $photo_id || ! $album_id ) {
+		return;
+	}
+	ministry_photo_mark_gallery( $photo_id );
+	$ids = ministry_photo_album_ids( $photo_id );
+	if ( ! in_array( $album_id, $ids, true ) ) {
+		$ids[] = $album_id;
+		update_post_meta( $photo_id, '_mom_album_ids', $ids );
+	}
+	$photos = get_post_meta( $album_id, '_mom_photos', true );
+	if ( ! is_array( $photos ) ) {
+		$photos = array();
+	}
+	foreach ( $photos as $row ) {
+		if ( is_array( $row ) && (int) $row['id'] === $photo_id ) {
+			return;
+		}
+	}
+	$photos[] = array(
+		'id'      => $photo_id,
+		'caption' => (string) get_post_field( 'post_excerpt', $photo_id ),
+		'alt'     => (string) get_post_meta( $photo_id, '_wp_attachment_image_alt', true ),
+		'home'    => '0',
+	);
+	update_post_meta( $album_id, '_mom_photos', $photos );
+}
+
+/**
+ * Remove a photo from one album, keeping it in the gallery if it still has albums or is standalone.
+ *
+ * @param int $photo_id Attachment ID.
+ * @param int $album_id Album ID.
+ */
+function ministry_photo_remove_from_album( $photo_id, $album_id ) {
+	$photo_id = (int) $photo_id;
+	$album_id = (int) $album_id;
+	$ids      = array_values( array_diff( ministry_photo_album_ids( $photo_id ), array( $album_id ) ) );
+	update_post_meta( $photo_id, '_mom_album_ids', $ids );
+	ministry_photo_mark_gallery( $photo_id );
+	$photos = get_post_meta( $album_id, '_mom_photos', true );
+	if ( ! is_array( $photos ) ) {
+		return;
+	}
+	$next = array();
+	foreach ( $photos as $row ) {
+		if ( is_array( $row ) && (int) $row['id'] !== $photo_id ) {
+			$next[] = $row;
+		}
+	}
+	update_post_meta( $album_id, '_mom_photos', $next );
+}
+
+/**
+ * Replace the albums a photo belongs to.
+ *
+ * @param int   $photo_id Attachment ID.
+ * @param int[] $album_ids Album IDs.
+ */
+function ministry_photo_set_albums( $photo_id, $album_ids ) {
+	$photo_id  = (int) $photo_id;
+	$album_ids = array_values( array_unique( array_filter( array_map( 'absint', $album_ids ) ) ) );
+	$current   = ministry_photo_album_ids( $photo_id );
+	foreach ( $current as $album_id ) {
+		if ( ! in_array( $album_id, $album_ids, true ) ) {
+			ministry_photo_remove_from_album( $photo_id, $album_id );
+		}
+	}
+	foreach ( $album_ids as $album_id ) {
+		ministry_photo_add_to_album( $photo_id, $album_id );
+	}
+	ministry_photo_mark_gallery( $photo_id );
+	update_post_meta( $photo_id, '_mom_album_ids', $album_ids );
+}
+
+/**
+ * Drop album membership when a photo is deleted.
+ *
+ * @param int $photo_id Attachment ID.
+ */
+function ministry_photo_detach( $photo_id ) {
+	foreach ( ministry_photo_album_ids( $photo_id ) as $album_id ) {
+		ministry_photo_remove_from_album( $photo_id, $album_id );
+	}
+	delete_post_meta( $photo_id, '_mom_gallery' );
+	delete_post_meta( $photo_id, '_mom_album_ids' );
+}
+
+/**
+ * Gallery photos, including those not in an album.
+ *
+ * @return WP_Post[]
+ */
+function ministry_gallery_photos() {
+	foreach ( get_posts( array( 'post_type' => 'mom_album', 'post_status' => 'any', 'posts_per_page' => 200, 'fields' => 'ids' ) ) as $album_id ) {
+		foreach ( ministry_album_photos( (int) $album_id ) as $photo ) {
+			ministry_photo_add_to_album( (int) $photo['id'], (int) $album_id );
+		}
+	}
+	return get_posts(
+		array(
+			'post_type'      => 'attachment',
+			'post_status'    => 'inherit',
+			'post_mime_type' => 'image',
+			'posts_per_page' => 300,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'meta_key'       => '_mom_gallery',
+			'meta_value'     => '1',
+		)
+	);
+}
+
+/**
  * Homepage banners in menu order.
  *
  * @return WP_Post[]

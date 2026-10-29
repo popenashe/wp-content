@@ -144,6 +144,11 @@ function ministry_site_links( $html ) {
 				$suffix = isset( $page[2] ) ? $page[2] : '';
 				return $m[1] . '="' . esc_url( ministry_site_url( $page[1] ) ) . esc_attr( $suffix ) . '"';
 			}
+			if ( preg_match( '#^(css/styles\.css|js/main\.js)#', $m[2], $asset ) ) {
+				$file = ministry_site_dir() . $asset[1];
+				$ver  = is_readable( $file ) ? (string) filemtime( $file ) : (string) time();
+				return $m[1] . '="' . esc_url( $base . $asset[1] ) . '?v=' . rawurlencode( $ver ) . '"';
+			}
 			return $m[1] . '="' . esc_url( $base . $m[2] ) . '"';
 		},
 		$html
@@ -302,7 +307,9 @@ function ministry_site_contact_form( $body ) {
 	);
 	// phpcs:disable WordPress.Security.NonceVerification.Recommended
 	if ( isset( $_GET['enquiry'] ) && 'sent' === $_GET['enquiry'] ) {
-		$body = str_replace( '<p data-sent hidden class="note"', '<p data-sent class="note"', $body );
+		$body = str_replace( '<p data-sent hidden class="note"', '<p data-sent class="note" role="status"', $body );
+	} else {
+		$body = str_replace( '<p data-sent class="note"', '<p data-sent hidden class="note"', $body );
 	}
 	if ( isset( $_GET['enquiry_error'] ) ) {
 		$body = str_replace(
@@ -312,6 +319,49 @@ function ministry_site_contact_form( $body ) {
 		);
 	}
 	// phpcs:enable
+	return $body;
+}
+
+/**
+ * Wire the public registration form.
+ *
+ * @param string $body Register page markup.
+ */
+function ministry_site_register_form( $body ) {
+	$fields = '<input type="hidden" name="action" value="ministry_register">'
+		. wp_nonce_field( 'ministry_register', 'ministry_register_nonce', true, false )
+		. '<p hidden><label>Leave this empty <input name="company_website" tabindex="-1" autocomplete="off"></label></p>';
+	$event_id    = isset( $_GET['event'] ) ? absint( wp_unslash( $_GET['event'] ) ) : 0;
+	$event_title = '';
+	if ( $event_id ) {
+		$event = get_post( $event_id );
+		if ( $event && 'mom_event' === $event->post_type ) {
+			$event_title = $event->post_title;
+			$fields     .= '<input type="hidden" name="event_id" value="' . esc_attr( (string) $event_id ) . '">';
+		}
+	}
+	$body = str_replace(
+		'<form class="form-card" id="mom-register-form" method="post">',
+		'<form class="form-card" id="mom-register-form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">' . $fields,
+		$body
+	);
+	if ( $event_title ) {
+		$body = str_replace(
+			'id="reg-event" name="event_title" required>',
+			'id="reg-event" name="event_title" required value="' . esc_attr( $event_title ) . '">',
+			$body
+		);
+	}
+	if ( isset( $_GET['registration'] ) && 'sent' === $_GET['registration'] ) {
+		$body = str_replace( '<p data-sent hidden class="note"', '<p data-sent class="note" role="status"', $body );
+	}
+	if ( isset( $_GET['registration_error'] ) ) {
+		$body = str_replace(
+			'<button class="btn btn-navy" type="submit">',
+			'<p class="note" role="alert" style="margin:0 0 14px">Please complete every required field with a valid email address.</p><button class="btn btn-navy" type="submit">',
+			$body
+		);
+	}
 	return $body;
 }
 

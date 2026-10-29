@@ -24,8 +24,13 @@ function ministry_desk_handle_save() {
 		wp_die( esc_html__( 'Your role cannot save this.', 'ministry-content' ) );
 	}
 	$back = isset( $_REQUEST['back'] ) ? esc_url_raw( wp_unslash( $_REQUEST['back'] ) ) : ministry_desk_url( 'mom-desk' );
+	if ( 'delete' === $form ) {
+		$back = remove_query_arg( array( 'id', 'index', 'new' ), $back );
+	}
 	$id   = ministry_desk_save_form( $form );
-	if ( $id ) {
+	if ( $id && 'album-create' === $form ) {
+		$back = ministry_desk_url( 'mom-albums', array( 'view' => 'edit', 'id' => $id ) );
+	} elseif ( $id && 'delete' !== $form ) {
 		$back = add_query_arg( 'id', $id, $back );
 	}
 	wp_safe_redirect( add_query_arg( 'saved', '1', $back ) );
@@ -65,6 +70,11 @@ function ministry_desk_save_form( $form ) {
 			return ministry_desk_save_event();
 		case 'album':
 			return ministry_desk_save_album_form();
+		case 'album-create':
+			return ministry_desk_save_album_create();
+		case 'photos':
+			ministry_desk_save_photos();
+			return 0;
 		case 'person':
 			ministry_desk_save_person();
 			return 0;
@@ -153,6 +163,16 @@ function ministry_desk_save_delete() {
 		}
 		return;
 	}
+	$attachment = isset( $_REQUEST['attachment_id'] ) ? absint( $_REQUEST['attachment_id'] ) : 0;
+	if ( $attachment ) {
+		if ( ! current_user_can( 'delete_post', $attachment ) || ! ministry_desk_can( 'albums' ) ) {
+			wp_die( esc_html__( 'Your role cannot delete this photo.', 'ministry-content' ) );
+		}
+		ministry_photo_detach( $attachment );
+		wp_delete_attachment( $attachment, true );
+		ministry_desk_log( 'deleted a photo' );
+		return;
+	}
 	$id = isset( $_REQUEST['post_id'] ) ? absint( $_REQUEST['post_id'] ) : 0;
 	if ( ! $id || ! current_user_can( 'delete_post', $id ) ) {
 		return;
@@ -160,6 +180,12 @@ function ministry_desk_save_delete() {
 	$type_cap = ministry_desk_type_cap( (string) get_post_type( $id ) );
 	if ( $type_cap && ! ministry_desk_can( $type_cap ) ) {
 		wp_die( esc_html__( 'Your role cannot delete this.', 'ministry-content' ) );
+	}
+	if ( 'mom_album' === get_post_type( $id ) ) {
+		$photos = ministry_album_photos( $id );
+		foreach ( $photos as $photo ) {
+			ministry_photo_remove_from_album( (int) $photo['id'], $id );
+		}
 	}
 	wp_trash_post( $id );
 	ministry_desk_log( 'deleted ' . get_the_title( $id ) );
@@ -201,6 +227,8 @@ function ministry_desk_delete_link( $id, $back = '', $extra = array() ) {
 	if ( ! $id && empty( $extra ) ) {
 		return;
 	}
+	$message = isset( $extra['confirm'] ) ? (string) $extra['confirm'] : 'Remove this from the website?';
+	unset( $extra['confirm'] );
 	$query = array_merge(
 		array(
 			'action' => 'ministry_desk_save',
@@ -213,7 +241,7 @@ function ministry_desk_delete_link( $id, $back = '', $extra = array() ) {
 		$query['post_id'] = (int) $id;
 	}
 	$url = wp_nonce_url( admin_url( 'admin-post.php?' . http_build_query( $query ) ), 'ministry_desk_save' );
-	echo ' · <a class="mom-danger-link" href="' . esc_url( $url ) . '" onclick="return confirm(\'Remove this from the website?\')">Delete</a>';
+	echo ' · <a class="mom-danger-link" href="' . esc_url( $url ) . '" onclick="return confirm(\'' . esc_js( $message ) . '\')">Delete</a>';
 }
 
 /**
@@ -257,10 +285,25 @@ function ministry_desk_save_story( $form ) {
 	if ( 'notice' !== $form && ! in_array( $kind, $allowed, true ) ) {
 		$kind = 'press';
 	}
+	$excerpt = sanitize_textarea_field( isset( $_POST['post_excerpt'] ) ? wp_unslash( $_POST['post_excerpt'] ) : '' );
+	$title   = sanitize_text_field( isset( $_POST['post_title'] ) ? wp_unslash( $_POST['post_title'] ) : '' );
+	$number  = isset( $_POST['notice_number'] ) ? sanitize_text_field( wp_unslash( $_POST['notice_number'] ) ) : '';
+	if ( 'notice' === $form ) {
+		if ( $id && ( '' === $number || ! ministry_desk_can( 'notice_numbers' ) ) ) {
+			$existing = (string) get_post_meta( $id, '_mom_number', true );
+			$number   = $existing ? $existing : ministry_desk_next_notice_number();
+		} elseif ( '' === $number ) {
+			$number = ministry_desk_next_notice_number();
+		}
+		$title = $number ? 'Public Notice ' . $number : wp_trim_words( $excerpt, 12, '' );
+		if ( '' === $title ) {
+			$title = 'Public notice';
+		}
+	}
 	$postarr = array(
 		'post_type'    => 'mom_news',
-		'post_title'   => sanitize_text_field( isset( $_POST['post_title'] ) ? wp_unslash( $_POST['post_title'] ) : '' ),
-		'post_excerpt' => sanitize_textarea_field( isset( $_POST['post_excerpt'] ) ? wp_unslash( $_POST['post_excerpt'] ) : '' ),
+		'post_title'   => $title,
+		'post_excerpt' => $excerpt,
 		'post_content' => wp_kses_post( isset( $_POST['post_content'] ) ? wp_unslash( $_POST['post_content'] ) : '' ),
 		'post_status'  => $status,
 	);
@@ -276,10 +319,9 @@ function ministry_desk_save_story( $form ) {
 	if ( ! $id ) {
 		return 0;
 	}
-	$number = isset( $_POST['notice_number'] ) ? sanitize_text_field( wp_unslash( $_POST['notice_number'] ) ) : '';
-	if ( 'notice' === $kind && ( '' === $number || ! ministry_desk_can( 'notice_numbers' ) ) ) {
+	if ( 'notice' === $form && ( '' === $number || ! ministry_desk_can( 'notice_numbers' ) ) ) {
 		$existing = (string) get_post_meta( $id, '_mom_number', true );
-		$number   = $existing ? $existing : ministry_desk_next_notice_number();
+		$number   = $existing ? $existing : $number;
 	}
 	update_post_meta( $id, '_mom_kind', 'notice' === $form ? 'notice' : $kind );
 	update_post_meta( $id, '_mom_number', $number );
@@ -288,7 +330,24 @@ function ministry_desk_save_story( $form ) {
 	update_post_meta( $id, '_mom_deadline', sanitize_text_field( isset( $_POST['deadline'] ) ? wp_unslash( $_POST['deadline'] ) : '' ) );
 	update_post_meta( $id, '_mom_signed_by', sanitize_text_field( isset( $_POST['signed_by'] ) ? wp_unslash( $_POST['signed_by'] ) : '' ) );
 	update_post_meta( $id, '_mom_pdf_id', absint( isset( $_POST['pdf_id'] ) ? wp_unslash( $_POST['pdf_id'] ) : 0 ) );
-	update_post_meta( $id, '_mom_banner', empty( $_POST['banner'] ) ? '0' : '1' );
+	$banner = empty( $_POST['banner'] ) ? '0' : '1';
+	update_post_meta( $id, '_mom_banner', $banner );
+	if ( '1' === $banner ) {
+		$others = get_posts(
+			array(
+				'post_type'      => 'mom_news',
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'meta_key'       => '_mom_banner',
+				'meta_value'     => '1',
+				'exclude'        => array( $id ),
+			)
+		);
+		foreach ( $others as $other ) {
+			update_post_meta( (int) $other, '_mom_banner', '0' );
+		}
+	}
 	update_post_meta( $id, '_mom_banner_text', sanitize_text_field( isset( $_POST['banner_text'] ) ? wp_unslash( $_POST['banner_text'] ) : '' ) );
 	update_post_meta( $id, '_mom_banner_until', sanitize_text_field( isset( $_POST['banner_until'] ) ? wp_unslash( $_POST['banner_until'] ) : '' ) );
 	update_post_meta( $id, '_mom_topics', ministry_desk_text_list( 'topics' ) );
@@ -298,6 +357,8 @@ function ministry_desk_save_story( $form ) {
 	$thumb = absint( isset( $_POST['thumbnail_id'] ) ? wp_unslash( $_POST['thumbnail_id'] ) : 0 );
 	if ( $thumb ) {
 		set_post_thumbnail( $id, $thumb );
+	} elseif ( isset( $_POST['thumbnail_id'] ) ) {
+		delete_post_thumbnail( $id );
 	}
 	if ( $thumb && isset( $_POST['alt'] ) ) {
 		update_post_meta( $thumb, '_wp_attachment_image_alt', sanitize_text_field( wp_unslash( $_POST['alt'] ) ) );
@@ -423,25 +484,29 @@ function ministry_desk_save_service() {
  * @return int
  */
 function ministry_desk_save_faq() {
-	$id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+	$id      = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+	$title   = sanitize_text_field( isset( $_POST['post_title'] ) ? wp_unslash( $_POST['post_title'] ) : '' );
+	$content = wp_kses_post( isset( $_POST['post_content'] ) ? wp_unslash( $_POST['post_content'] ) : '' );
 	ministry_desk_guard_post( $id );
-	$postarr = array(
-		'post_type'    => 'mom_faq',
-		'post_title'   => sanitize_text_field( isset( $_POST['post_title'] ) ? wp_unslash( $_POST['post_title'] ) : '' ),
-		'post_content' => wp_kses_post( isset( $_POST['post_content'] ) ? wp_unslash( $_POST['post_content'] ) : '' ),
-		'post_status'  => '' === trim( (string) ( isset( $_POST['post_content'] ) ? wp_unslash( $_POST['post_content'] ) : '' ) ) ? 'draft' : 'publish',
-		'menu_order'   => isset( $_POST['menu_order'] ) ? absint( $_POST['menu_order'] ) : 0,
-	);
-	if ( $id ) {
-		$postarr['ID'] = $id;
-		wp_update_post( $postarr );
-	} else {
-		$id = (int) wp_insert_post( $postarr );
-	}
-	if ( $id ) {
-		update_post_meta( $id, '_mom_department', sanitize_text_field( isset( $_POST['department'] ) ? wp_unslash( $_POST['department'] ) : '' ) );
-		update_post_meta( $id, '_mom_topic', sanitize_text_field( isset( $_POST['topic'] ) ? wp_unslash( $_POST['topic'] ) : '' ) );
-		update_post_meta( $id, '_mom_readmore', absint( isset( $_POST['readmore'] ) ? wp_unslash( $_POST['readmore'] ) : 0 ) );
+	if ( $id || '' !== $title || '' !== trim( wp_strip_all_tags( $content ) ) ) {
+		$postarr = array(
+			'post_type'    => 'mom_faq',
+			'post_title'   => $title,
+			'post_content' => $content,
+			'post_status'  => '' === trim( wp_strip_all_tags( $content ) ) ? 'draft' : 'publish',
+			'menu_order'   => isset( $_POST['menu_order'] ) ? absint( $_POST['menu_order'] ) : 0,
+		);
+		if ( $id ) {
+			$postarr['ID'] = $id;
+			wp_update_post( $postarr );
+		} else {
+			$id = (int) wp_insert_post( $postarr );
+		}
+		if ( $id ) {
+			update_post_meta( $id, '_mom_department', sanitize_text_field( isset( $_POST['department'] ) ? wp_unslash( $_POST['department'] ) : '' ) );
+			update_post_meta( $id, '_mom_topic', sanitize_text_field( isset( $_POST['topic'] ) ? wp_unslash( $_POST['topic'] ) : '' ) );
+			update_post_meta( $id, '_mom_readmore', absint( isset( $_POST['readmore'] ) ? wp_unslash( $_POST['readmore'] ) : 0 ) );
+		}
 	}
 	$order = isset( $_POST['order'] ) ? sanitize_text_field( wp_unslash( $_POST['order'] ) ) : '';
 	if ( $order ) {
@@ -494,6 +559,7 @@ function ministry_desk_save_event() {
 	update_post_meta( $id, '_mom_places', sanitize_text_field( isset( $_POST['places'] ) ? wp_unslash( $_POST['places'] ) : '' ) );
 	update_post_meta( $id, '_mom_reg_close', sanitize_text_field( isset( $_POST['reg_close'] ) ? wp_unslash( $_POST['reg_close'] ) : '' ) );
 	update_post_meta( $id, '_mom_accept_reg', empty( $_POST['accept_reg'] ) ? '0' : '1' );
+	update_post_meta( $id, '_mom_reg_url', esc_url_raw( isset( $_POST['reg_url'] ) ? wp_unslash( $_POST['reg_url'] ) : '' ) );
 	update_post_meta( $id, '_mom_calendar', empty( $_POST['calendar'] ) ? '0' : '1' );
 	update_post_meta( $id, '_mom_album_id', absint( isset( $_POST['album_id'] ) ? wp_unslash( $_POST['album_id'] ) : 0 ) );
 	$thumb = absint( isset( $_POST['thumbnail_id'] ) ? wp_unslash( $_POST['thumbnail_id'] ) : 0 );
@@ -555,7 +621,14 @@ function ministry_desk_save_album_form() {
 	if ( ! $id ) {
 		return 0;
 	}
+	$previous = ministry_album_photos( $id );
+	foreach ( $previous as $old ) {
+		ministry_photo_remove_from_album( (int) $old['id'], $id );
+	}
 	update_post_meta( $id, '_mom_photos', $photos );
+	foreach ( $photos as $photo ) {
+		ministry_photo_add_to_album( (int) $photo['id'], $id );
+	}
 	update_post_meta( $id, '_mom_year', sanitize_text_field( isset( $_POST['event_date'] ) ? wp_unslash( $_POST['event_date'] ) : '' ) );
 	update_post_meta( $id, '_mom_album_cat', sanitize_text_field( isset( $_POST['album_cat'] ) ? wp_unslash( $_POST['album_cat'] ) : '' ) );
 	update_post_meta( $id, '_mom_location', sanitize_text_field( isset( $_POST['location'] ) ? wp_unslash( $_POST['location'] ) : '' ) );
@@ -814,6 +887,8 @@ function ministry_desk_save_department( $form ) {
 	if ( $thumb ) {
 		set_post_thumbnail( $id, $thumb );
 		update_post_meta( $thumb, '_wp_attachment_image_alt', sanitize_text_field( isset( $_POST['alt'] ) ? wp_unslash( $_POST['alt'] ) : '' ) );
+	} elseif ( isset( $_POST['thumbnail_id'] ) ) {
+		delete_post_thumbnail( $id );
 	}
 	if ( 'department' === $form ) {
 		$photo = absint( isset( $_POST['photo_id'] ) ? wp_unslash( $_POST['photo_id'] ) : 0 );
@@ -826,8 +901,10 @@ function ministry_desk_save_department( $form ) {
 		$design = isset( $_POST['design_page'] ) ? sanitize_title( wp_unslash( $_POST['design_page'] ) ) : '';
 		if ( isset( $pages[ $design ] ) ) {
 			update_post_meta( $id, '_mom_design', $design );
+			update_post_meta( $id, '_mom_design_key', $design );
 		} else {
 			delete_post_meta( $id, '_mom_design' );
+			delete_post_meta( $id, '_mom_design_key' );
 		}
 	}
 	ministry_desk_log( 'updated ' . $postarr['post_title'] );
@@ -1105,7 +1182,6 @@ function ministry_desk_save_enquiry() {
 		$status = 'open';
 	}
 	update_post_meta( $id, '_mom_status', $status );
-	update_post_meta( $id, '_mom_assign', sanitize_text_field( isset( $_POST['assign'] ) ? wp_unslash( $_POST['assign'] ) : '' ) );
 	update_post_meta( $id, '_mom_due', sanitize_text_field( isset( $_POST['due'] ) ? wp_unslash( $_POST['due'] ) : '' ) );
 	update_post_meta( $id, '_mom_note', sanitize_textarea_field( isset( $_POST['note'] ) ? wp_unslash( $_POST['note'] ) : '' ) );
 	ministry_desk_log( 'updated an enquiry' );
@@ -1321,21 +1397,31 @@ function ministry_desk_save_page() {
  * Download enquiries as a spreadsheet.
  */
 function ministry_desk_export_enquiries() {
+	$type  = isset( $_REQUEST['type'] ) ? sanitize_key( wp_unslash( $_REQUEST['type'] ) ) : '';
 	$posts = ministry_desk_posts( 'mom_enquiry', array( 'posts_per_page' => 500 ) );
+	$slug  = $type ? $type : 'enquiries';
 	nocache_headers();
 	header( 'Content-Type: text/csv; charset=utf-8' );
-	header( 'Content-Disposition: attachment; filename=enquiries.csv' );
+	header( 'Content-Disposition: attachment; filename=' . sanitize_file_name( $slug ) . '.csv' );
 	$out = fopen( 'php://output', 'w' );
-	fputcsv( $out, array( 'Received', 'Form', 'Subject', 'From', 'Email', 'Status', 'Message' ) );
+	fputcsv( $out, array( 'Received', 'Form', 'Subject', 'From', 'Email', 'Phone', 'Office', 'Organisation', 'Event', 'Status', 'Message' ) );
 	foreach ( $posts as $post ) {
+		$item_type = (string) get_post_meta( $post->ID, '_mom_type', true );
+		if ( $type && $item_type !== $type ) {
+			continue;
+		}
 		fputcsv(
 			$out,
 			array(
 				$post->post_date,
-				(string) get_post_meta( $post->ID, '_mom_type', true ),
+				$item_type,
 				$post->post_title,
 				(string) get_post_meta( $post->ID, '_mom_name', true ),
 				(string) get_post_meta( $post->ID, '_mom_email', true ),
+				(string) get_post_meta( $post->ID, '_mom_phone', true ),
+				(string) get_post_meta( $post->ID, '_mom_office', true ),
+				(string) get_post_meta( $post->ID, '_mom_org', true ),
+				(string) get_post_meta( $post->ID, '_mom_event', true ),
 				(string) get_post_meta( $post->ID, '_mom_status', true ),
 				wp_strip_all_tags( $post->post_content ),
 			)
@@ -1343,4 +1429,76 @@ function ministry_desk_export_enquiries() {
 	}
 	fclose( $out );
 	exit;
+}
+
+/**
+ * Create an album without photos.
+ *
+ * @return int
+ */
+function ministry_desk_save_album_create() {
+	$title = sanitize_text_field( isset( $_POST['post_title'] ) ? wp_unslash( $_POST['post_title'] ) : '' );
+	if ( '' === $title ) {
+		$title = 'Untitled album';
+	}
+	$id = (int) wp_insert_post(
+		array(
+			'post_type'   => 'mom_album',
+			'post_title'  => $title,
+			'post_status' => ministry_desk_status_for( isset( $_POST['intent'] ) ? sanitize_key( wp_unslash( $_POST['intent'] ) ) : 'draft', 0 ),
+		)
+	);
+	if ( ! $id ) {
+		return 0;
+	}
+	update_post_meta( $id, '_mom_photos', array() );
+	update_post_meta( $id, '_mom_year', sanitize_text_field( isset( $_POST['event_date'] ) ? wp_unslash( $_POST['event_date'] ) : wp_date( 'Y' ) ) );
+	update_post_meta( $id, '_mom_album_cat', sanitize_text_field( isset( $_POST['album_cat'] ) ? wp_unslash( $_POST['album_cat'] ) : '' ) );
+	update_post_meta( $id, '_mom_location', sanitize_text_field( isset( $_POST['location'] ) ? wp_unslash( $_POST['location'] ) : '' ) );
+	update_post_meta( $id, '_mom_credit', sanitize_text_field( isset( $_POST['credit'] ) ? wp_unslash( $_POST['credit'] ) : 'MMMD Communications' ) );
+	ministry_desk_log( 'created a photo album' );
+	return $id;
+}
+
+/**
+ * Assign uploaded photos to albums or keep them standalone.
+ */
+function ministry_desk_save_photos() {
+	$rows = isset( $_POST['photos'] ) ? wp_unslash( $_POST['photos'] ) : array();
+	if ( ! is_array( $rows ) ) {
+		return;
+	}
+	foreach ( $rows as $row ) {
+		if ( ! is_array( $row ) ) {
+			continue;
+		}
+		$photo = absint( isset( $row['id'] ) ? $row['id'] : 0 );
+		if ( ! $photo || ! wp_attachment_is_image( $photo ) ) {
+			continue;
+		}
+		$alt = sanitize_text_field( isset( $row['alt'] ) ? (string) $row['alt'] : '' );
+		if ( $alt ) {
+			update_post_meta( $photo, '_wp_attachment_image_alt', $alt );
+		}
+		$caption = sanitize_text_field( isset( $row['caption'] ) ? (string) $row['caption'] : '' );
+		if ( $caption ) {
+			wp_update_post(
+				array(
+					'ID'           => $photo,
+					'post_excerpt' => $caption,
+				)
+			);
+		}
+		$albums = array();
+		if ( isset( $row['albums'] ) && is_array( $row['albums'] ) ) {
+			foreach ( $row['albums'] as $album ) {
+				$album = absint( $album );
+				if ( $album && 'mom_album' === get_post_type( $album ) ) {
+					$albums[] = $album;
+				}
+			}
+		}
+		ministry_photo_set_albums( $photo, $albums );
+	}
+	ministry_desk_log( 'updated gallery photos' );
 }

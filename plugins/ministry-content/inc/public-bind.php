@@ -139,6 +139,7 @@ function ministry_front_page_key( $name ) {
 		'how-to-get-a-mining-claim' => 'claim',
 		'contact'                   => 'contact',
 		'faq'                       => 'faq',
+		'register'                  => 'register',
 	);
 	return isset( $map[ $name ] ) ? $map[ $name ] : '';
 }
@@ -876,16 +877,32 @@ function ministry_front_events( $body, $name ) {
 				if ( $when && ! empty( $source['when'] ) ) {
 					$region = ministry_front_text( $region, (string) $source['when'], ministry_format_date( $when ), 2 );
 				}
+				$reg = ministry_event_register_url( $post );
+				$region = preg_replace( '#(<a class="btn btn-navy btn-sm" href=")[^"]+#', '$1' . esc_url( $reg ), $region, 1 );
 				return $region;
 			}
 		);
 	}
 	foreach ( ministry_front_extra_posts( 'mom_event' ) as $post ) {
 		$when = (string) get_post_meta( $post->ID, '_mom_starts_at', true );
-		$card = '<article class="event-card" data-cat="upcoming"><div class="card-body"><p class="eyebrow">' . esc_html( (string) get_post_meta( $post->ID, '_mom_category', true ) ) . '</p><h3>' . esc_html( $post->post_title ) . '</h3><p class="small muted">' . esc_html( $post->post_excerpt ) . '</p><p class="small">' . esc_html( trim( ministry_format_date( $when ) . ' · ' . (string) get_post_meta( $post->ID, '_mom_location', true ), ' ·' ) ) . '</p><a class="btn btn-navy btn-sm" href="' . esc_url( ministry_site_url( 'contact' ) ) . '#enquiry">Register</a></div></article>';
+		$card = '<article class="event-card" data-cat="upcoming"><div class="card-body"><p class="eyebrow">' . esc_html( (string) get_post_meta( $post->ID, '_mom_category', true ) ) . '</p><h3>' . esc_html( $post->post_title ) . '</h3><p class="small muted">' . esc_html( $post->post_excerpt ) . '</p><p class="small">' . esc_html( trim( ministry_format_date( $when ) . ' · ' . (string) get_post_meta( $post->ID, '_mom_location', true ), ' ·' ) ) . '</p><a class="btn btn-navy btn-sm" href="' . esc_url( ministry_event_register_url( $post ) ) . '">Register</a></div></article>';
 		$body = str_replace( '<aside class="aside-stack">', $card . '<aside class="aside-stack">', $body );
 	}
 	return $body;
+}
+
+/**
+ * On-site registration page, or an off-site URL.
+ *
+ * @param WP_Post $post Event.
+ */
+function ministry_event_register_url( $post ) {
+	$external = (string) get_post_meta( $post->ID, '_mom_reg_url', true );
+	if ( $external ) {
+		return $external;
+	}
+	$url = function_exists( 'ministry_site_url' ) ? ministry_site_url( 'register' ) : home_url( '/register/' );
+	return add_query_arg( 'event', (string) $post->ID, $url );
 }
 
 /**
@@ -899,35 +916,64 @@ function ministry_front_services( $body, $name ) {
 	$base = ministry_design_baseline();
 	$rows = isset( $base['services'] ) && is_array( $base['services'] ) ? $base['services'] : array();
 	$by   = ministry_front_keyed_posts( 'mom_service' );
+	$used = array();
 	foreach ( $rows as $key => $source ) {
 		if ( ! is_array( $source ) ) {
 			continue;
 		}
 		if ( ! isset( $by[ $key ] ) ) {
-			$body = ministry_front_region( $body, 'article', (string) $source['title'], function () {
-				return '';
-			} );
+			$body = ministry_front_region(
+				$body,
+				'article',
+				(string) $source['title'],
+				function () {
+					return '';
+				}
+			);
 			continue;
 		}
-		$post    = $by[ $key ];
-		$service = get_post_meta( $post->ID, '_mom_service', true );
-		$cat     = is_array( $service ) && isset( $service['category'] ) ? (string) $service['category'] : '';
-		$body    = ministry_front_region(
+		$post     = $by[ $key ];
+		$used[]   = $post->ID;
+		$body     = ministry_front_region(
 			$body,
 			'article',
 			(string) $source['title'],
-			function ( $region ) use ( $source, $post, $cat ) {
-				$region = ministry_front_text( $region, (string) $source['title'], $post->post_title, 2 );
-				$region = ministry_front_text( $region, (string) $source['excerpt'], $post->post_excerpt, 2 );
-				if ( $cat ) {
-					$region = ministry_front_text( $region, (string) $source['category'], $cat, 2 );
-				}
-				return $region;
+			function ( $region ) use ( $post ) {
+				return ministry_front_service_card_html( $post, $region );
 			}
 		);
 	}
+	$by_title = array();
+	foreach ( ministry_posts( 'mom_service' ) as $post ) {
+		$by_title[ strtolower( $post->post_title ) ] = $post;
+	}
+	$body = preg_replace_callback(
+		'#<article class="svc\b[^"]*"[^>]*>.*?</article>#s',
+		function ( $match ) use ( $by_title, &$used ) {
+			if ( str_contains( $match[0], 'svc-detail' ) ) {
+				return $match[0];
+			}
+			if ( ! preg_match( '#<h3>(.*?)</h3>#s', $match[0], $heading ) ) {
+				return $match[0];
+			}
+			$title = strtolower( trim( wp_strip_all_tags( $heading[1] ) ) );
+			if ( ! isset( $by_title[ $title ] ) ) {
+				return $match[0];
+			}
+			$post    = $by_title[ $title ];
+			$used[]  = $post->ID;
+			return ministry_front_service_card_html( $post, $match[0] );
+		},
+		$body
+	);
+	if ( ! is_string( $body ) ) {
+		return $body;
+	}
 	foreach ( ministry_front_extra_posts( 'mom_service' ) as $post ) {
-		$card = '<article class="svc"><div class="svc-top"><span class="tag grey">' . esc_html( $post->post_excerpt ? '' : 'Service' ) . '</span></div><h3>' . esc_html( $post->post_title ) . '</h3><p>' . esc_html( $post->post_excerpt ) . '</p></article>';
+		if ( in_array( $post->ID, $used, true ) ) {
+			continue;
+		}
+		$card = ministry_front_service_card_html( $post );
 		$body = str_replace( '<p class="small muted" style="margin-top:14px">', $card . '<p class="small muted" style="margin-top:14px">', $body );
 	}
 	return $body;
@@ -1027,6 +1073,17 @@ function ministry_front_departments( $body, $name ) {
 				if ( ! empty( $source['head'] ) ) {
 					$region = ministry_front_text( $region, (string) $source['head'], $head, 2 );
 				}
+				$cat = ministry_front_department_cat( $post );
+				if ( preg_match( '/\sdata-cat="/', $region ) ) {
+					$region = preg_replace( '/\sdata-cat="[^"]*"/', ' data-cat="' . esc_attr( $cat ) . '"', $region, 1 );
+				} else {
+					$region = preg_replace( '/^<article\b/', '<article data-cat="' . esc_attr( $cat ) . '"', $region, 1 );
+				}
+				$portrait = ministry_thumb_url( $post->ID, 'medium' );
+				if ( $portrait ) {
+					$alt    = $head ? $head : $post->post_title;
+					$region = ministry_front_set_box_image( $region, 'ph', $portrait, $alt );
+				}
 				return $region;
 			}
 		);
@@ -1035,11 +1092,15 @@ function ministry_front_departments( $body, $name ) {
 		if ( '1' === (string) get_post_meta( $post->ID, '_mom_provincial', true ) || '1' === (string) get_post_meta( $post->ID, '_mom_centre', true ) ) {
 			continue;
 		}
-		$url  = ministry_front_department_link( $post );
-		$card = '<article class="dept-card"><div><div class="top"><h3>' . esc_html( $post->post_title ) . '</h3></div><p class="mandate"><strong>Mandate:</strong> ' . esc_html( (string) get_post_meta( $post->ID, '_mom_summary', true ) ) . '</p><div class="foot"><a href="' . esc_url( $url ) . '"><strong>Department page</strong></a></div></div></article>';
-		$body = str_replace( '<div class="dept-grid" id="dept-list">', '<div class="dept-grid" id="dept-list">' . $card, $body );
+		$url      = ministry_front_department_link( $post );
+		$cat      = ministry_front_department_cat( $post );
+		$portrait = ministry_thumb_url( $post->ID, 'medium' );
+		$head     = (string) get_post_meta( $post->ID, '_mom_contact_name', true );
+		$photo    = $portrait ? '<div class="ph"><img src="' . esc_url( $portrait ) . '" alt="' . esc_attr( $head ? $head : $post->post_title ) . '" loading="lazy"></div>' : '';
+		$card     = '<article class="dept-card" data-cat="' . esc_attr( $cat ) . '">' . $photo . '<div><div class="top"><h3>' . esc_html( $post->post_title ) . '</h3></div><p class="mandate"><strong>Mandate:</strong> ' . esc_html( (string) get_post_meta( $post->ID, '_mom_summary', true ) ) . '</p><div class="foot"><a href="' . esc_url( $url ) . '"><strong>Department page</strong></a></div></div></article>';
+		$body     = str_replace( '<div class="dept-grid" id="dept-list">', '<div class="dept-grid" id="dept-list">' . $card, $body );
 	}
-	return $body;
+	return ministry_front_department_filters( $body );
 }
 
 /**
@@ -1235,6 +1296,25 @@ function ministry_front_department_page( $body, $slug, $source ) {
 		)
 	);
 	if ( ! $posts ) {
+		$posts = get_posts(
+			array(
+				'post_type'      => 'mom_department',
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'meta_key'       => '_mom_design',
+				'meta_value'     => $slug,
+			)
+		);
+	}
+	if ( ! $posts ) {
+		foreach ( ministry_posts( 'mom_department' ) as $candidate ) {
+			if ( function_exists( 'ministry_department_design_slug' ) && ministry_department_design_slug( $candidate ) === $slug ) {
+				$posts = array( $candidate );
+				break;
+			}
+		}
+	}
+	if ( ! $posts ) {
 		return $body;
 	}
 	$post = $posts[0];
@@ -1257,16 +1337,75 @@ function ministry_front_department_page( $body, $slug, $source ) {
 		$body = ministry_front_swap_standards( $body, $standards );
 	}
 	$thumb = (int) get_post_thumbnail_id( $post );
-	if ( $thumb && $thumb !== (int) $source['thumb'] ) {
-		$url = wp_get_attachment_image_url( $thumb, 'medium' );
-		if ( $url ) {
-			$updated = preg_replace( '#(<div class="hod-card".*?<img[^>]*\ssrc=")[^"]*#s', '$1' . esc_url( $url ), $body, 1 );
-			if ( is_string( $updated ) ) {
-				$body = $updated;
-			}
-		}
+	$url   = $thumb ? wp_get_attachment_image_url( $thumb, 'medium' ) : '';
+	if ( $url ) {
+		$alt  = (string) get_post_meta( $post->ID, '_mom_contact_name', true );
+		$body = ministry_front_set_box_image( $body, 'portrait', $url, $alt ? $alt : $post->post_title );
 	}
 	return $body;
+}
+
+/**
+ * Replace the first photo box (list thumbnail or HoD portrait), including placeholders.
+ *
+ * @param string $html  Markup.
+ * @param string $class ph|portrait.
+ * @param string $url   Image URL.
+ * @param string $alt   Alt text.
+ */
+function ministry_front_set_box_image( $html, $class, $url, $alt ) {
+	$img     = '<img src="' . esc_url( $url ) . '" alt="' . esc_attr( $alt ) . '" loading="lazy">';
+	$updated = preg_replace(
+		'#<div class="' . preg_quote( $class, '#' ) . '(?:| [^"]*)">.*?</div>#s',
+		'<div class="' . esc_attr( $class ) . '">' . $img . '</div>',
+		$html,
+		1
+	);
+	return is_string( $updated ) ? $updated : $html;
+}
+
+/**
+ * Public filter key for a department group in wp-admin.
+ *
+ * @param WP_Post $post Department.
+ */
+function ministry_front_department_cat( $post ) {
+	$group = function_exists( 'ministry_desk_department_group' ) ? ministry_desk_department_group( $post ) : '1';
+	$map   = array(
+		'1' => 'corporate',
+		'2' => 'investment',
+		'3' => 'technical',
+		'4' => 'provincial',
+	);
+	return isset( $map[ $group ] ) ? $map[ $group ] : 'corporate';
+}
+
+/**
+ * Align public department pills with organisational groups.
+ *
+ * @param string $body Markup.
+ */
+function ministry_front_department_filters( $body ) {
+	$groups = function_exists( 'ministry_desk_department_groups' ) ? ministry_desk_department_groups() : array(
+		'1' => 'Corporate & support services',
+		'2' => 'Mining Development, Research & Beneficiation',
+		'3' => 'Mining Technical Services',
+		'4' => 'Provincial Mining Offices',
+	);
+	$keys   = array(
+		'3' => 'technical',
+		'2' => 'investment',
+		'1' => 'corporate',
+		'4' => 'provincial',
+	);
+	$pills  = '<button class="pill" type="button" data-filter="all" aria-pressed="true">All</button>';
+	foreach ( $keys as $key => $filter ) {
+		$label  = isset( $groups[ $key ] ) ? $groups[ $key ] : $filter;
+		$pills .= '<button class="pill" type="button" data-filter="' . esc_attr( $filter ) . '" aria-pressed="false">' . esc_html( $label ) . '</button>';
+	}
+	$pills .= '<span class="grow"></span><label class="small" for="dept-search"><strong>Find a department</strong></label><input class="field" id="dept-search" type="search" style="width:220px;min-height:40px">';
+	$updated = preg_replace( '/<div class="filter-row"[^>]*data-filter-group="#dept-list"[^>]*>.*?<\/div>/s', '<div class="filter-row" style="margin-top:28px" data-filter-group="#dept-list" role="group" aria-label="Filter departments">' . $pills . '</div>', $body, 1 );
+	return is_string( $updated ) ? $updated : $body;
 }
 
 /**
@@ -1861,6 +2000,22 @@ function ministry_front_meta_text( $post_id, $meta ) {
 }
 
 /**
+ * Design-file key for a live record.
+ *
+ * @param WP_Post $post Record.
+ */
+function ministry_front_record_key( $post ) {
+	$key = (string) get_post_meta( $post->ID, '_mom_design_key', true );
+	if ( '' === $key ) {
+		$key = (string) get_post_meta( $post->ID, '_mom_design', true );
+	}
+	if ( '' === $key && 'mom_department' === $post->post_type && function_exists( 'ministry_department_design_slug' ) ) {
+		$key = ministry_department_design_slug( $post );
+	}
+	return $key;
+}
+
+/**
  * Published records indexed by design key.
  *
  * @param string $type Post type.
@@ -1869,7 +2024,7 @@ function ministry_front_meta_text( $post_id, $meta ) {
 function ministry_front_keyed_posts( $type ) {
 	$out = array();
 	foreach ( ministry_posts( $type ) as $post ) {
-		$key = (string) get_post_meta( $post->ID, '_mom_design_key', true );
+		$key = ministry_front_record_key( $post );
 		if ( '' !== $key ) {
 			$out[ $key ] = $post;
 		}
@@ -1888,7 +2043,7 @@ function ministry_front_extra_posts( $type ) {
 	$keys = isset( $base['keys'][ $type ] ) && is_array( $base['keys'][ $type ] ) ? $base['keys'][ $type ] : array();
 	$out  = array();
 	foreach ( ministry_posts( $type ) as $post ) {
-		$key = (string) get_post_meta( $post->ID, '_mom_design_key', true );
+		$key = ministry_front_record_key( $post );
 		if ( '' === $key || ! in_array( $key, $keys, true ) ) {
 			$out[] = $post;
 		}
@@ -1900,7 +2055,7 @@ function ministry_front_extra_posts( $type ) {
  * @param WP_Post $post Department.
  */
 function ministry_front_department_link( $post ) {
-	$slug = (string) get_post_meta( $post->ID, '_mom_design', true );
+	$slug = ministry_front_record_key( $post );
 	$file = get_template_directory() . '/site/department-' . $slug . '.html';
 	if ( $slug && is_readable( $file ) ) {
 		return ministry_site_url( 'department-' . $slug );
@@ -1965,7 +2120,10 @@ function ministry_front_dynamic_department( $slug ) {
 	if ( $list ) {
 		$main .= '<h2 style="font-size:1.4rem">Key functions</h2><ul class="check-list">' . $list . '</ul>';
 	}
-	$main .= '</div><aside><div class="hod-card"><div class="card-body"><p class="eyebrow">Head of department</p><h3>' . esc_html( (string) get_post_meta( $post->ID, '_mom_contact_name', true ) ) . '</h3><p class="small muted">' . esc_html( (string) get_post_meta( $post->ID, '_mom_head_title', true ) ) . '</p></div></div></aside></div></section>';
+	$head = (string) get_post_meta( $post->ID, '_mom_contact_name', true );
+	$pic  = ministry_thumb_url( $post->ID, 'medium' );
+	$hod  = $pic ? '<div class="portrait"><img src="' . esc_url( $pic ) . '" alt="' . esc_attr( $head ? $head : $post->post_title ) . '" loading="lazy"></div>' : '';
+	$main .= '</div><aside><div class="hod-card">' . $hod . '<div class="card-body"><p class="eyebrow">Head of department</p><h3>' . esc_html( $head ) . '</h3><p class="small muted">' . esc_html( (string) get_post_meta( $post->ID, '_mom_head_title', true ) ) . '</p></div></div></aside></div></section>';
 	$doc   = function_exists( 'ministry_bind_wrap' ) ? ministry_bind_wrap( 'departments', $main ) : array( 'head' => '', 'body' => $main );
 	status_header( 200 );
 	ministry_site_output( $doc['head'], $doc['body'] );

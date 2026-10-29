@@ -67,7 +67,7 @@ function ministry_register_post_types() {
 				'labels'    => ministry_labels( 'Department', 'Departments' ),
 				'rewrite'   => array( 'slug' => 'departments' ),
 				'menu_icon' => 'dashicons-building',
-				'supports'  => array( 'title', 'editor', 'revisions' ),
+				'supports'  => array( 'title', 'editor', 'thumbnail', 'revisions' ),
 			)
 		)
 	);

@@ -155,4 +155,36 @@
     var counter = document.getElementById('msg-count');
     msg.addEventListener('input', function () { counter.textContent = msg.value.length + ' / 2,000 characters'; });
   }
+
+  // Service cards: preview on the list, details in a dialog
+  var svcDialog = document.createElement('div');
+  svcDialog.className = 'svc-dialog';
+  svcDialog.hidden = true;
+  svcDialog.innerHTML = '<div class="svc-dialog-panel" role="dialog" aria-modal="true"><button class="btn btn-sm btn-outline" type="button" data-svc-close>Close</button><div data-svc-body></div></div>';
+  document.body.appendChild(svcDialog);
+  var svcBody = svcDialog.querySelector('[data-svc-body]');
+  function closeSvc() { svcDialog.hidden = true; }
+  svcDialog.addEventListener('click', function (e) {
+    if (e.target === svcDialog || e.target.closest('[data-svc-close]')) closeSvc();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSvc(); });
+  document.querySelectorAll('article.svc').forEach(function (card) {
+    function openSvc() {
+      var title = card.querySelector('h3');
+      var detail = card.querySelector('.svc-detail');
+      var excerpt = card.querySelector('p');
+      svcBody.innerHTML = (title ? '<h2>' + title.textContent + '</h2>' : '') + (excerpt ? '<p>' + excerpt.textContent + '</p>' : '') + (detail ? detail.innerHTML : '');
+      svcDialog.hidden = false;
+    }
+    card.addEventListener('click', function (e) {
+      if (e.target.closest('a')) return;
+      openSvc();
+    });
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openSvc();
+      }
+    });
+  });
 })();

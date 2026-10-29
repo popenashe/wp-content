@@ -120,7 +120,7 @@
     var modal = $(
       '<div class="mom-crop-modal" role="dialog" aria-label="Crop image">' +
         '<div class="mom-crop-panel"><p class="mom-crop-title">Crop image</p>' +
-        '<div class="mom-crop-stage"><img alt=""></div>' +
+        '<div class="mom-crop-stage"><div class="mom-crop-frame"><img alt=""></div></div>' +
         '<p class="mom-crop-error" hidden></p>' +
         '<div class="mom-crop-actions">' +
         '<button type="button" class="mom-btn" data-crop-skip>Use full image</button>' +
@@ -135,7 +135,9 @@
       var options = {
         handles: true,
         persistent: true,
-        parent: modal.find(".mom-crop-stage"),
+        parent: modal.find(".mom-crop-frame"),
+        imageHeight: img[0].naturalHeight,
+        imageWidth: img[0].naturalWidth,
         instance: true,
       };
       if (ratio) options.aspectRatio = ratio;
@@ -234,11 +236,12 @@
 
   $(document).on("click", ".mom-add-photos", function (event) {
     event.preventDefault();
-    var list = $(".mom-photo-grid");
+    var list = $(this).closest("form").find(".mom-photo-grid");
+    if (!list.length) list = $(".mom-photo-grid");
     frame(
       {
-        title: "Add photos",
-        button: { text: "Add to album" },
+        title: "Upload photos",
+        button: { text: "Upload" },
         multiple: true,
         library: { type: "image" },
       },
@@ -252,10 +255,25 @@
           });
           card.find(".mom-photo-id").val(file.id);
           card.find("img").attr("src", (file.sizes && file.sizes.medium && file.sizes.medium.url) || file.url);
+          var holder = card.find(".mom-upload-albums");
+          if (holder.length) {
+            $(".mom-upload-album:checked").each(function () {
+              holder.append(
+                $("<input>", {
+                  type: "hidden",
+                  name: "photos[" + index + "][albums][]",
+                  value: $(this).val(),
+                })
+              );
+            });
+          }
           list.append(card);
         });
       }
     );
+  });
+  $(document).on("click", ".mom-faq-card .mom-danger-link", function (event) {
+    event.stopPropagation();
   });
 
   $(document).on("click", ".mom-remove-photo", function () {
@@ -273,10 +291,11 @@
   function writeOrder(list) {
     var ids = [];
     var field = list.attr("data-order-field") || "order";
-    list.find("[data-id]").each(function () {
+    list.children("[data-id]").each(function () {
       ids.push($(this).data("id"));
     });
-    list.closest("form").find("[name='" + field + "']").val(ids.join(","));
+    var form = list.data("order-form") ? $(list.data("order-form")) : list.closest("form");
+    form.find("[name='" + field + "']").val(ids.join(","));
   }
 
   $(".mom-sortable").each(function () {
@@ -297,6 +316,9 @@
     };
     if (list.is("tbody")) {
       options.items = "tr";
+    }
+    if (list.hasClass("mom-faq-list")) {
+      options.items = "details";
     }
     list.sortable(options);
   });

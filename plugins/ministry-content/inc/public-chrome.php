@@ -847,32 +847,82 @@ function ministry_front_services_more( $body, $name ) {
 			$body    = is_string( $updated ) ? $updated : $body;
 		}
 	}
-	foreach ( ministry_posts( 'mom_service' ) as $post ) {
-		$data = get_post_meta( $post->ID, '_mom_service', true );
-		$fees = is_array( $data ) && isset( $data['fees'] ) && is_array( $data['fees'] ) ? $data['fees'] : array();
-		$lines = '';
-		foreach ( $fees as $fee ) {
-			if ( ! is_array( $fee ) || empty( $fee['amount'] ) ) {
-				continue;
-			}
-			$lines .= '<li>' . esc_html( (string) $fee['label'] ) . ': ' . esc_html( (string) $fee['amount'] ) . '</li>';
-		}
-		if ( ! $lines ) {
+	return $body;
+}
+
+/**
+ * Full service copy shown after a card is opened.
+ *
+ * @param WP_Post $post Service.
+ */
+function ministry_front_service_detail_html( $post ) {
+	$data = get_post_meta( $post->ID, '_mom_service', true );
+	$data = is_array( $data ) ? $data : array();
+	$html = '';
+	$turn = trim( ( isset( $data['number'] ) ? (string) $data['number'] : '' ) . ' ' . ( isset( $data['unit'] ) ? (string) $data['unit'] : '' ) );
+	if ( $turn ) {
+		$html .= '<p class="small"><strong>Turnaround:</strong> ' . esc_html( $turn ) . '</p>';
+	}
+	if ( ! empty( $data['category'] ) ) {
+		$html .= '<p class="small"><strong>Category:</strong> ' . esc_html( (string) $data['category'] ) . '</p>';
+	}
+	if ( $post->post_content ) {
+		$html .= '<div class="svc-body">' . wp_kses_post( $post->post_content ) . '</div>';
+	}
+	foreach ( array( 'needs' => 'What you need', 'steps' => 'How to apply' ) as $key => $label ) {
+		$items = isset( $data[ $key ] ) && is_array( $data[ $key ] ) ? $data[ $key ] : array();
+		$items = array_filter( array_map( 'strval', $items ) );
+		if ( ! $items ) {
 			continue;
 		}
-		$body = ministry_front_region(
-			$body,
-			'article',
-			$post->post_title,
-			function ( $region ) use ( $lines ) {
-				if ( str_contains( $region, '<ul class="fee-lines">' ) ) {
-					return $region;
-				}
-				return str_replace( '</article>', '<ul class="fee-lines small">' . $lines . '</ul></article>', $region );
-			}
-		);
+		$html .= '<h4>' . esc_html( $label ) . '</h4><ul>';
+		foreach ( $items as $item ) {
+			$html .= '<li>' . esc_html( $item ) . '</li>';
+		}
+		$html .= '</ul>';
 	}
-	return $body;
+	$fees = isset( $data['fees'] ) && is_array( $data['fees'] ) ? $data['fees'] : array();
+	$lines = '';
+	foreach ( $fees as $fee ) {
+		if ( ! is_array( $fee ) || empty( $fee['amount'] ) ) {
+			continue;
+		}
+		$lines .= '<li>' . esc_html( (string) $fee['label'] ) . ': ' . esc_html( (string) $fee['amount'] ) . '</li>';
+	}
+	if ( $lines ) {
+		$html .= '<h4>Fees</h4><ul class="fee-lines small">' . $lines . '</ul>';
+	}
+	if ( ! empty( $data['office'] ) ) {
+		$html .= '<p class="small"><strong>Where:</strong> ' . esc_html( (string) $data['office'] ) . '</p>';
+	}
+	if ( ! empty( $data['department'] ) ) {
+		$html .= '<p class="small"><strong>Department:</strong> ' . esc_html( (string) $data['department'] ) . '</p>';
+	}
+	if ( '' === trim( wp_strip_all_tags( $html ) ) ) {
+		$html = '<p class="small muted">Contact your Provincial Mining Office for this service.</p>';
+	}
+	return $html;
+}
+
+/**
+ * Compact service card: title and one-line preview, with details hidden until opened.
+ *
+ * @param WP_Post $post   Service.
+ * @param string  $region Existing card markup, used to keep the icon.
+ */
+function ministry_front_service_card_html( $post, $region = '' ) {
+	$top = '';
+	if ( $region && preg_match( '#<div class="svc-top">.*?</div>#s', $region, $match ) ) {
+		$top = $match[0];
+	} else {
+		$top = '<div class="svc-top"><span class="tag grey">Service</span></div>';
+	}
+	$data = get_post_meta( $post->ID, '_mom_service', true );
+	$cat  = is_array( $data ) && ! empty( $data['category'] ) ? (string) $data['category'] : '';
+	if ( $cat ) {
+		$top = preg_replace( '#(<span class="tag[^"]*">)[^<]*#', '$1' . esc_html( $cat ), $top, 1 );
+	}
+	return '<article class="svc" tabindex="0">' . $top . '<h3>' . esc_html( $post->post_title ) . '</h3><p>' . esc_html( $post->post_excerpt ) . '</p><span class="svc-more">View details</span><div class="svc-detail" aria-hidden="true">' . ministry_front_service_detail_html( $post ) . '</div></article>';
 }
 
 /**

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>MMMD manual test checklist</title>
+	<style>
+		:root {
+			--navy: #1b2a4e;
+			--gold: #c4a35a;
+			--ink: #1a1f2e;
+			--muted: #5c6578;
+			--line: #d8deea;
+			--ok: #1f7a4d;
+			--paper: #f4f1ea;
+			--card: #fff;
+		}
+		* { box-sizing: border-box; }
+		body {
+			margin: 0;
+			font: 16px/1.45 "Source Sans 3", "Segoe UI", sans-serif;
+			color: var(--ink);
+			background: var(--paper);
+		}
+		header {
+			background: var(--navy);
+			color: #fff;
+			padding: 28px 20px 22px;
+		}
+		header h1 { margin: 0 0 6px; font-size: 1.45rem; font-weight: 700; }
+		header p { margin: 0; color: #c5cde0; max-width: 48rem; }
+		.wrap { max-width: 52rem; margin: 0 auto; padding: 20px; }
+		.toolbar {
+			display: grid;
+			gap: 12px;
+			background: var(--card);
+			border: 1px solid var(--line);
+			border-radius: 10px;
+			padding: 14px 16px;
+			margin-bottom: 18px;
+			position: sticky;
+			top: 0;
+			z-index: 2;
+		}
+		.toolbar label { font-size: .82rem; font-weight: 700; color: var(--navy); display: block; margin-bottom: 4px; }
+		.toolbar input[type="url"], .toolbar input[type="text"] {
+			width: 100%;
+			padding: 8px 10px;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			font: inherit;
+		}
+		.presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+		.presets button, .actions button {
+			border: 1px solid var(--navy);
+			background: #fff;
+			color: var(--navy);
+			border-radius: 999px;
+			padding: 6px 12px;
+			font: inherit;
+			font-size: .85rem;
+			cursor: pointer;
+		}
+		.presets button:hover, .actions button:hover { background: #eef1f7; }
+		.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+		.progress {
+			font-weight: 700;
+			color: var(--navy);
+		}
+		.bar { height: 8px; background: #e6eaf2; border-radius: 99px; overflow: hidden; }
+		.bar > span { display: block; height: 100%; background: var(--ok); width: 0; }
+		section {
+			background: var(--card);
+			border: 1px solid var(--line);
+			border-radius: 10px;
+			margin-bottom: 14px;
+			overflow: hidden;
+		}
+		section > h2 {
+			margin: 0;
+			padding: 12px 16px;
+			background: var(--navy);
+			color: #fff;
+			font-size: 1rem;
+		}
+		section > h2 small { color: var(--gold); font-weight: 600; margin-left: 8px; }
+		.item {
+			display: grid;
+			grid-template-columns: auto 1fr auto;
+			gap: 10px;
+			align-items: start;
+			padding: 10px 16px;
+			border-top: 1px solid var(--line);
+		}
+		.item:has(input:checked) { background: #f3f8f4; }
+		.item label { cursor: pointer; }
+		.item .path { display: block; color: var(--muted); font-size: .82rem; margin-top: 2px; }
+		.item a { color: var(--navy); }
+		.item input[type="checkbox"] { width: 18px; height: 18px; margin-top: 3px; accent-color: var(--ok); }
+		.note {
+			width: 100%;
+			min-width: 8rem;
+			max-width: 16rem;
+			padding: 6px 8px;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			font: inherit;
+			font-size: .82rem;
+		}
+		.hint { padding: 10px 16px; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); }
+		footer { color: var(--muted); font-size: .85rem; padding: 8px 4px 40px; }
+		@media print {
+			.toolbar .presets, .actions { display: none; }
+			.toolbar { position: static; }
+			.item:has(input:not(:checked)) { background: #fff8e8; }
+		}
+	</style>
+</head>
+<body>
+	<header>
+		<div class="wrap">
+			<h1>Manual test checklist</h1>
+			<p>Tick each item as you check it on the public site and in wp-admin. Ticks and notes stay in this browser until you reset. This file is for testers — do not put it in public_html on the live server.</p>
+		</div>
+	</header>
+	<div class="wrap">
+		<div class="toolbar">
+			<div>
+				<label for="base">Site you are testing</label>
+				<input id="base" type="url" placeholder="http://ministrysite.local">
+				<div class="presets">
+					<button type="button" data-base="http://ministrysite.local">Local</button>
+					<button type="button" data-base="https://ministryofmines.org">Live</button>
+				</div>
+			</div>
+			<div class="actions">
+				<span class="progress" id="progress">0 / 0 done</span>
+				<button type="button" id="reset">Reset all ticks</button>
+				<button type="button" onclick="window.print()">Print</button>
+			</div>
+			<div class="bar" aria-hidden="true"><span id="bar"></span></div>
+		</div>
+
+		<div id="list"></div>
+		<footer>Ministry of Mines and Mining Development — QA sheet. Open this file from the project, or copy it to your computer. Checkboxes are stored only on this device.</footer>
+	</div>
+	<script>
+	(function () {
+		var STORE = 'mom-qa-v1';
+		var groups = [
+			{
+				title: 'Before you start',
+				items: [
+					['Confirm which site you are testing (Local or live) and set the URL above.'],
+					['Sign in as Administrator for the wp-admin half of this list.'],
+					['Have a second browser or private window ready for logged-out public checks.']
+				]
+			},
+			{
+				title: 'Public — chrome on every page',
+				items: [
+					['Official banner, coat of arms, ministry name, and tagline show.', '/'],
+					['EN is selected; SN and ND switch language labels (or mark which strings are still English).', '/'],
+					['Search box submits and returns a result or a clear empty state.', '/'],
+					['Mining Cadastre opens the official portal (new tab).', '/'],
+					['Primary nav: Home, About, Departments, Offices, Services, Invest, News & Gallery, Resources, Contact.', '/'],
+					['Mobile Menu opens and closes; all nav items are reachable.', '/'],
+					['Skip to main content works from the keyboard.', '/'],
+					['Ask Assistant opens the widget (or FAQ if the widget is off).', '/'],
+					['Footer: address, phones, emails, Services & Offices, Information, legal links, social links.', '/'],
+					['Toll-free 08004577 is visible in the header strip and footer.', '/']
+				]
+			},
+			{
+				title: 'Public — pages',
+				items: [
+					['Home: hero, I want to…, leadership, news, gallery, investor cards, service gateways, agencies.', '/'],
+					['Home: slideshow pause/play; slides change.', '/'],
+					['About the ministry.', '/about'],
+					['The Ministry (leadership profiles).', '/the-ministry'],
+					['Departments list.', '/departments'],
+					['Offices: four Harare centres and 8 provinces.', '/offices'],
+					['Offices: each card with an address shows an OpenFreeMap thumbnail.', '/offices'],
+					['Offices: clicking a thumbnail opens Google Maps search for that address.', '/offices'],
+					['Services and turnaround standards.', '/services'],
+					['How to get a mining claim.', '/how-to-get-a-mining-claim'],
+					['Invest.', '/invest'],
+					['News list and at least one notice/article.', '/news'],
+					['Public Notice 03/2026.', '/news/public-notice-03-2026'],
+					['Public Notice 02/2026.', '/news/public-notice-02-2026'],
+					['Events.', '/events'],
+					['Gallery / albums.', '/gallery'],
+					['Resources: documents download (or a clear “downloads off” state).', '/resources'],
+					['FAQ.', '/faq'],
+					['Contact: address, phones, Ask the Minister / complaint / investor forms.', '/contact'],
+					['Parastatals & agencies.', '/parastatals'],
+					['Privacy.', '/privacy'],
+					['Accessibility statement.', '/accessibility'],
+					['Access to information.', '/information'],
+					['Terms of use.', '/terms'],
+					['Sitemap.', '/sitemap'],
+					['How to verify official sites.', '/verify']
+				]
+			},
+			{
+				title: 'Public — department pages',
+				items: [
+					['Geological Survey', '/departments/geological-survey'],
+					['Mining Cadastre', '/departments/mining-cadastre'],
+					['Mining Engineering', '/departments/mining-engineering'],
+					['Metallurgy', '/departments/metallurgy'],
+					['Energy Minerals', '/departments/energy-minerals'],
+					['Non-Energy Minerals', '/departments/non-energy-minerals'],
+					['Value Addition and Beneficiation', '/departments/value-addition-and-beneficiation'],
+					['Strategic Policy & Planning', '/departments/strategic-policy-planning'],
+					['Finance and Administration', '/departments/finance-and-administration'],
+					['Human Resources', '/departments/human-resources'],
+					['ICT', '/departments/ict'],
+					['Legal Services', '/departments/legal-services'],
+					['Internal Audit', '/departments/internal-audit'],
+					['Procurement Management Unit', '/departments/procurement-management-unit'],
+					['Communication and Advocacy', '/departments/communication-and-advocacy'],
+					['Gender, Inclusivity and Wellness', '/departments/gender-inclusivity-and-wellness']
+				]
+			},
+			{
+				title: 'Public — forms and assistant',
+				items: [
+					['Ask the Minister form submits and appears under Enquiries in the desk.', '/contact#enquiry'],
+					['Complaint / problem form submits.', '/contact'],
+					['Investor interest form submits.', '/invest'],
+					['Event RSVP (if an event is open) submits.', '/events'],
+					['Assistant answers a simple question, or FAQ fallback is clear.', '/']
+				]
+			},
+			{
+				title: 'wp-admin — sign-in and desk shell',
+				items: [
+					['Login screen shows ministry branding.', '/wp-login.php'],
+					['Wrong password is rejected.', '/wp-login.php'],
+					['Administrator lands on the staff Dashboard, not the default WP dashboard.', '/wp-admin/admin.php?page=mom-desk'],
+					['Desk sidebar: Dashboard, Notices, Documents, Services, People, Albums, Events, Agencies, Enquiries, Facts, Pages, Users.', '/wp-admin/admin.php?page=mom-desk'],
+					['Top bar: logo, Add new, waiting-for-approval bell, user name, Log out.', '/wp-admin/admin.php?page=mom-desk'],
+					['Log out returns to the login screen.', '/wp-admin/admin.php?page=mom-desk'],
+					['Waiting for approval lists pending items (or empty state).', '/wp-admin/admin.php?page=mom-desk']
+				]
+			},
+			{
+				title: 'wp-admin — notices, documents, services, events',
+				items: [
+					['Public notices list; create, edit, numbered notice, publish or submit.', '/wp-admin/admin.php?page=mom-notices&kind=notice'],
+					['News & statements list; create and edit.', '/wp-admin/admin.php?page=mom-notices&kind=news'],
+					['Published notice appears on /news and the homepage.', '/news'],
+					['Documents list; upload PDF; categories; draft label; file opens on Resources.', '/wp-admin/admin.php?page=mom-documents'],
+					['Large PDF near 64 MB uploads (or the host limit is shown clearly).', '/wp-admin/admin.php?page=mom-documents&add=1'],
+					['Services list; add/edit service, requirements, steps, fees.', '/wp-admin/admin.php?page=mom-services'],
+					['FAQs: add, edit, reorder; public FAQ updates.', '/wp-admin/admin.php?page=mom-services&view=faqs'],
+					['Events: add, dates, publish; public events page updates.', '/wp-admin/admin.php?page=mom-events']
+				]
+			},
+			{
+				title: 'wp-admin — people, offices, albums, agencies',
+				items: [
+					['People: portraits, titles, bios, order; homepage / The Ministry update.', '/wp-admin/admin.php?page=mom-people'],
+					['Departments: edit purpose and functions; public department page updates.', '/wp-admin/admin.php?page=mom-people&view=departments'],
+					['Offices: edit street address only (no latitude/longitude fields).', '/wp-admin/admin.php?page=mom-people&view=offices'],
+					['Change an office address, save, reload /offices — thumbnail and Google Maps follow the new address.', '/offices'],
+					['Organisational structure.', '/wp-admin/admin.php?page=mom-people&view=structure'],
+					['Leadership team.', '/wp-admin/admin.php?page=mom-people&view=leadership'],
+					['Photo albums: upload, captions, alt text, order; gallery updates.', '/wp-admin/admin.php?page=mom-albums'],
+					['Agencies list.', '/wp-admin/admin.php?page=mom-agencies'],
+					['Investment opportunities.', '/wp-admin/admin.php?page=mom-agencies&view=opportunities']
+				]
+			},
+			{
+				title: 'wp-admin — enquiries, facts, pages, users',
+				items: [
+					['Ask the Minister queue.', '/wp-admin/admin.php?page=mom-enquiries&type=minister'],
+					['Complaints queue.', '/wp-admin/admin.php?page=mom-enquiries&type=complaint'],
+					['Investor interest queue.', '/wp-admin/admin.php?page=mom-enquiries&type=investor'],
+					['Event registrations.', '/wp-admin/admin.php?page=mom-enquiries&type=event'],
+					['Ministry facts.', '/wp-admin/admin.php?page=mom-facts'],
+					['Contact details in settings match the public footer.', '/wp-admin/admin.php?page=mom-facts&part=contact'],
+					['Homepage copy/settings.', '/wp-admin/admin.php?page=mom-facts&part=home'],
+					['Site appearance (logo, look).', '/wp-admin/admin.php?page=mom-facts&part=look'],
+					['Pages list; edit a page intro; public page updates.', '/wp-admin/admin.php?page=mom-pages'],
+					['Users & Roles: add user, presets, Custom ticks, edit user.', '/wp-admin/admin.php?page=mom-users'],
+					['Administrator can open Plugins, Appearance, Tools from the desk footer.', '/wp-admin/plugins.php'],
+					['Ministry Mines theme shows a homepage thumbnail under Appearance → Themes.', '/wp-admin/themes.php']
+				]
+			},
+			{
+				title: 'Roles (use a test account for each)',
+				items: [
+					['Content Officer can edit notices/documents/events but cannot publish (goes to Waiting for approval).'],
+					['Content Officer cannot open Users, Plugins, Appearance, or Facts.'],
+					['Translator sees Translate only; English is read-only.'],
+					['Communications Director can publish and approve Waiting for approval items.'],
+					['Custom role: only the ticks you set are available.'],
+					['Leaver: disable the account; they cannot sign in; past work still shows their name.']
+				]
+			},
+			{
+				title: 'Translations',
+				items: [
+					['Add a Shona translation for a notice; SN on the public site shows it.', '/wp-admin/admin.php?page=mom-notices'],
+					['Add a Ndebele translation.', '/wp-admin/admin.php?page=mom-notices'],
+					['Change the English text; the translation is marked out of date on the Dashboard.']
+				]
+			},
+			{
+				title: 'WordPress stock admin (Administrator)',
+				items: [
+					['Plugins list loads (ministry-content, ministry-engage).', '/wp-admin/plugins.php'],
+					['Media library opens; a test image uploads.', '/wp-admin/upload.php'],
+					['Settings → Permalinks is Post name; save once if pretty URLs 404.', '/wp-admin/options-permalink.php'],
+					['Site Health does not block uploads (post_max_size vs upload_max_filesize).', '/wp-admin/site-health.php']
+				]
+			},
+			{
+				title: 'Live / after deploy',
+				items: [
+					['https://ministryofmines.org loads (not a blank main area).', 'https://ministryofmines.org/'],
+					['HTTPS padlock; http redirects to https.'],
+					['No leftover Wordfence folder blocking plugin installs.', '/wp-admin/plugins.php'],
+					['Uploads and PDFs on Resources still work after deploy.'],
+					['Office maps still load (OpenFreeMap tiles, Google Maps click).', '/offices']
+				]
+			}
+		];
+
+		var saved = {};
+		try { saved = JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { saved = {}; }
+
+		var baseInput = document.getElementById('base');
+		baseInput.value = saved.base || 'http://ministrysite.local';
+
+		function base() {
+			return (baseInput.value || '').replace(/\/$/, '');
+		}
+		function href(path) {
+			if (!path) return '';
+			if (/^https?:/i.test(path)) return path;
+			return base() + path;
+		}
+		function uid(g, i) { return g + '-' + i; }
+
+		function render() {
+			var root = document.getElementById('list');
+			root.innerHTML = '';
+			groups.forEach(function (group, gi) {
+				var sec = document.createElement('section');
+				var done = group.items.filter(function (_, i) { return saved[uid(gi, i)]; }).length;
+				sec.innerHTML = '<h2>' + group.title + ' <small>' + done + '/' + group.items.length + '</small></h2>';
+				group.items.forEach(function (item, ii) {
+					var id = uid(gi, ii);
+					var row = document.createElement('div');
+					row.className = 'item';
+					var text = item[0];
+					var path = item[1] || '';
+					var link = path ? '<span class="path"><a data-path="' + path + '" target="_blank" rel="noopener">' + path + '</a></span>' : '';
+					row.innerHTML =
+						'<input type="checkbox" id="' + id + '"' + (saved[id] ? ' checked' : '') + '>' +
+						'<label for="' + id + '">' + text + link + '</label>' +
+						'<input class="note" data-note="' + id + '" placeholder="Issue / note" value="' + (saved['n-' + id] || '').replace(/"/g, '&quot;') + '">';
+					sec.appendChild(row);
+				});
+				root.appendChild(sec);
+			});
+			syncLinks();
+			tally();
+		}
+
+		function syncLinks() {
+			document.querySelectorAll('a[data-path]').forEach(function (a) {
+				a.href = href(a.getAttribute('data-path'));
+			});
+		}
+
+		function tally() {
+			var boxes = document.querySelectorAll('#list input[type="checkbox"]');
+			var on = 0;
+			boxes.forEach(function (b) { if (b.checked) on++; });
+			document.getElementById('progress').textContent = on + ' / ' + boxes.length + ' done';
+			document.getElementById('bar').style.width = (boxes.length ? (100 * on / boxes.length) : 0) + '%';
+			document.querySelectorAll('#list section').forEach(function (sec, gi) {
+				var small = sec.querySelector('h2 small');
+				if (!small) return;
+				var n = groups[gi].items.length;
+				var d = groups[gi].items.filter(function (_, i) { return saved[uid(gi, i)]; }).length;
+				small.textContent = d + '/' + n;
+			});
+		}
+
+		function persist() {
+			saved.base = baseInput.value;
+			try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch (e) {}
+		}
+
+		document.getElementById('list').addEventListener('change', function (e) {
+			if (e.target.type === 'checkbox') {
+				saved[e.target.id] = e.target.checked ? 1 : 0;
+				persist();
+				tally();
+			}
+		});
+		document.getElementById('list').addEventListener('input', function (e) {
+			if (e.target.classList.contains('note')) {
+				saved['n-' + e.target.getAttribute('data-note')] = e.target.value;
+				persist();
+			}
+		});
+		baseInput.addEventListener('input', function () {
+			persist();
+			syncLinks();
+		});
+		document.querySelectorAll('.presets button').forEach(function (btn) {
+			btn.addEventListener('click', function () {
+				baseInput.value = btn.getAttribute('data-base');
+				persist();
+				syncLinks();
+			});
+		});
+		document.getElementById('reset').addEventListener('click', function () {
+			if (!confirm('Clear every tick and note on this device?')) return;
+			var keep = baseInput.value;
+			saved = { base: keep };
+			persist();
+			render();
+		});
+
+		render();
+	})();
+	</script>
+</body>
+</html>

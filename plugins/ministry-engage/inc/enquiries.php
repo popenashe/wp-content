@@ -41,6 +41,14 @@ add_action(
 	'admin_post_ministry_enquiry',
 	'ministry_handle_enquiry'
 );
+add_action(
+	'admin_post_nopriv_ministry_register',
+	'ministry_handle_registration'
+);
+add_action(
+	'admin_post_ministry_register',
+	'ministry_handle_registration'
+);
 
 /**
  * Save a contact form submission and return to the contact page.
@@ -107,6 +115,65 @@ function ministry_handle_enquiry() {
 	update_post_meta( $id, '_mom_status', 'open' );
 
 	wp_safe_redirect( add_query_arg( 'enquiry', 'sent', $redirect ) . '#enquiry' );
+	exit;
+}
+
+/**
+ * Save an on-site registration, separate from general enquiries.
+ */
+function ministry_handle_registration() {
+	$redirect = wp_get_referer() ? wp_get_referer() : home_url( '/register/' );
+	$redirect = remove_query_arg( array( 'registration', 'registration_error' ), $redirect );
+
+	if ( ! isset( $_POST['ministry_register_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['ministry_register_nonce'] ) ), 'ministry_register' ) ) {
+		wp_safe_redirect( add_query_arg( 'registration_error', '1', $redirect ) );
+		exit;
+	}
+	if ( ! empty( $_POST['company_website'] ) ) {
+		wp_safe_redirect( add_query_arg( 'registration', 'sent', $redirect ) );
+		exit;
+	}
+
+	$name     = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+	$email    = isset( $_POST['email'] ) ? sanitize_email( wp_unslash( $_POST['email'] ) ) : '';
+	$phone    = isset( $_POST['phone'] ) ? sanitize_text_field( wp_unslash( $_POST['phone'] ) ) : '';
+	$org      = isset( $_POST['organisation'] ) ? sanitize_text_field( wp_unslash( $_POST['organisation'] ) ) : '';
+	$event    = isset( $_POST['event_title'] ) ? sanitize_text_field( wp_unslash( $_POST['event_title'] ) ) : '';
+	$event_id = isset( $_POST['event_id'] ) ? absint( wp_unslash( $_POST['event_id'] ) ) : 0;
+	$message  = isset( $_POST['message'] ) ? sanitize_textarea_field( wp_unslash( $_POST['message'] ) ) : '';
+	if ( $event_id ) {
+		$linked = get_post( $event_id );
+		if ( $linked && 'mom_event' === $linked->post_type ) {
+			$event = $linked->post_title;
+		}
+	}
+	if ( '' === $name || '' === $email || '' === $event || ! is_email( $email ) ) {
+		wp_safe_redirect( add_query_arg( 'registration_error', '1', $redirect ) . '#register' );
+		exit;
+	}
+	$subject = 'Registration: ' . $event . ' — ' . $name;
+	$id      = wp_insert_post(
+		array(
+			'post_type'    => 'mom_enquiry',
+			'post_status'  => 'publish',
+			'post_title'   => $subject,
+			'post_content' => $message,
+		)
+	);
+	if ( ! $id || is_wp_error( $id ) ) {
+		wp_safe_redirect( add_query_arg( 'registration_error', '1', $redirect ) );
+		exit;
+	}
+	update_post_meta( $id, '_mom_name', $name );
+	update_post_meta( $id, '_mom_email', $email );
+	update_post_meta( $id, '_mom_phone', $phone );
+	update_post_meta( $id, '_mom_org', $org );
+	update_post_meta( $id, '_mom_event', $event );
+	update_post_meta( $id, '_mom_event_id', (string) $event_id );
+	update_post_meta( $id, '_mom_type', 'registration' );
+	update_post_meta( $id, '_mom_status', 'open' );
+
+	wp_safe_redirect( add_query_arg( 'registration', 'sent', $redirect ) . '#register' );
 	exit;
 }
 

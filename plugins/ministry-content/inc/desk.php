@@ -62,7 +62,7 @@ function ministry_desk_menus() {
 		'mom-notices'   => 'Notices & News',
 		'mom-documents' => 'Documents',
 		'mom-services'  => 'Services',
-		'mom-people'    => 'People & Structure',
+		'mom-people'    => 'Leadership',
 		'mom-albums'    => 'Photo albums',
 		'mom-events'    => 'Events',
 		'mom-agencies'  => 'Agencies & Investments',
@@ -671,6 +671,30 @@ function ministry_desk_leader_photo( $leader ) {
 }
 
 /**
+ * Group labels used in wp-admin and on the public Departments filters.
+ *
+ * @return array<string, string>
+ */
+function ministry_desk_department_groups() {
+	$defaults = array(
+		'1' => 'Corporate & support services',
+		'2' => 'Mining Development, Research & Beneficiation',
+		'3' => 'Mining Technical Services',
+		'4' => 'Provincial Mining Offices',
+	);
+	$meta = function_exists( 'ministry_desk_meta' ) ? ministry_desk_meta() : array();
+	$org  = isset( $meta['org'] ) && is_array( $meta['org'] ) ? $meta['org'] : array();
+	$out  = array();
+	foreach ( $defaults as $key => $label ) {
+		if ( ! empty( $org[ $key ]['title'] ) ) {
+			$label = (string) $org[ $key ]['title'];
+		}
+		$out[ $key ] = $label;
+	}
+	return $out;
+}
+
+/**
  * @param WP_Post $post Department.
  */
 function ministry_desk_department_group( $post ) {
@@ -744,6 +768,22 @@ function ministry_desk_router() {
 	}
 	if ( 'mom-albums' === $page && 'edit' === $view ) {
 		ministry_desk_screen_album();
+		return;
+	}
+	if ( 'mom-albums' === $page && 'new' === $view ) {
+		ministry_desk_screen_album_new();
+		return;
+	}
+	if ( 'mom-albums' === $page && 'photos' === $view ) {
+		ministry_desk_screen_photos();
+		return;
+	}
+	if ( 'mom-albums' === $page && 'upload' === $view ) {
+		ministry_desk_screen_photo_upload();
+		return;
+	}
+	if ( 'mom-enquiries' === $page && 'registration' === ( isset( $_GET['type'] ) ? sanitize_key( wp_unslash( $_GET['type'] ) ) : '' ) ) {
+		ministry_desk_screen_enquiries();
 		return;
 	}
 	if ( 'mom-people' === $page && 'person' === $view ) {

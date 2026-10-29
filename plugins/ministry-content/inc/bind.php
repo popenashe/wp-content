@@ -24,6 +24,9 @@ function ministry_bind_page( $name ) {
 	if ( 'contact' === $name && function_exists( 'ministry_site_contact_form' ) ) {
 		$bound['body'] = ministry_site_contact_form( $bound['body'] );
 	}
+	if ( 'register' === $name && function_exists( 'ministry_site_register_form' ) ) {
+		$bound['body'] = ministry_site_register_form( $bound['body'] );
+	}
 	if ( function_exists( 'ministry_site_albums' ) ) {
 		$bound['body'] = ministry_site_albums( $bound['body'], $name );
 	}
@@ -79,12 +82,11 @@ function ministry_bind_title( $name, $head ) {
 	if ( $label && $label === get_bloginfo( 'name' ) && ! empty( $copy['eyebrow'] ) ) {
 		$label = (string) $copy['eyebrow'];
 	}
-	if ( '' === $label || 'index' === $name ) {
-		if ( 'index' === $name ) {
-			$label = __( 'Home', 'ministry-content' );
-		} else {
-			return $head;
-		}
+	if ( '' === $label ) {
+		$label = ucwords( str_replace( '-', ' ', $name ) );
+	}
+	if ( 'index' === $name ) {
+		$label = __( 'Home', 'ministry-content' );
 	}
 	$full    = $label . ' | ' . get_bloginfo( 'name' );
 	$updated = preg_replace( '#<title>.*?</title>#s', '<title>' . esc_html( $full ) . '</title>', $head, 1 );

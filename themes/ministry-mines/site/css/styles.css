@@ -337,6 +337,19 @@ label.lbl { display: block; font-weight: 700; font-size: .85rem; margin-bottom: 
 .fee-card header h2 { color: #fff; font-size: 1.3rem; margin: 0; }
 .fee { font-family: var(--serif); font-weight: 700; font-size: 1.15rem; color: var(--green); white-space: nowrap; text-align: right; }
 .note { background: #FBF3D5; padding: 10px 16px; font-size: .82rem; display: flex; gap: 8px; align-items: center; }
+.note[hidden], [hidden] { display: none !important; }
+.svc { cursor: pointer; }
+.svc .svc-more { margin-top: auto; font-weight: 700; color: var(--green); }
+.svc-dialog {
+  position: fixed; inset: 0; z-index: 80; background: rgba(15,26,51,.55);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.svc-dialog[hidden] { display: none !important; }
+.svc-dialog-panel {
+  background: #fff; border-radius: 12px; max-width: 640px; width: 100%;
+  max-height: 86vh; overflow: auto; padding: 24px;
+}
+.svc-detail { display: none; }
 #album-empty { background: #FBF3D5; padding: 10px 16px; font-size: .82rem; margin: 0 0 16px; }
 #album-empty[hidden] { display: none; }
 .side-card { padding: 22px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--stone); }

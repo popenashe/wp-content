@@ -26,7 +26,7 @@ function ministry_desk_screen_documents() {
 			$counts['missing']++;
 		}
 	}
-	ministry_desk_head( 'Documents', 'Documents', 'Every file on the website lives here. Pages link to documents — they never upload their own copies.', '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-documents', array( 'add' => '1' ) ) ) . '#add">+ Add document</a>' );
+	ministry_desk_head( 'Documents', 'Documents', 'Every file on the website lives here. Pages link to documents — they never upload their own copies.' );
 	echo '<div class="mom-pills">';
 	foreach ( array( '' => array( 'All', $counts['all'] ), 'publish' => array( 'Published', $counts['publish'] ), 'draft' => array( 'Drafts', $counts['draft'] ), 'pending' => array( 'Awaiting review', $counts['pending'] ), 'missing' => array( 'Awaiting file', $counts['missing'] ) ) as $key => $pill ) {
 		echo '<a class="mom-pill' . ( $state === $key ? ' is-on' : '' ) . '" href="' . esc_url( ministry_desk_url( 'mom-documents', $key ? array( 'state' => $key ) : array() ) ) . '">' . esc_html( $pill[0] . ' (' . $pill[1] . ')' ) . '</a>';
@@ -66,7 +66,7 @@ function ministry_desk_screen_documents() {
 	ministry_desk_field( 'Category', 'category', $post ? (string) get_post_meta( $id, '_mom_category', true ) : 'guidelines', array( 'type' => 'select', 'required' => true, 'options' => $cats ) );
 	ministry_desk_field( 'Version / date', 'version', $post ? $post->post_excerpt : '' );
 	echo '<label class="mom-toggle"><input type="checkbox" name="is_draft" value="1" ' . checked( $post && '1' === get_post_meta( $id, '_mom_draft_label', true ), true, false ) . '> This is a draft — label it “Draft — subject to change”</label>';
-	echo '<p class="mom-actions" style="margin-top:12px"><a class="mom-btn" href="' . esc_url( ministry_desk_url( 'mom-documents' ) ) . '">Cancel</a><button class="mom-btn mom-btn-primary" name="intent" value="' . ( ministry_desk_can_publish() ? 'publish' : 'pending' ) . '">' . ( ministry_desk_can_publish() ? 'Publish' : 'Submit for review' ) . '</button>';
+	echo '<p class="mom-actions" style="margin-top:12px"><button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" name="intent" value="' . ( ministry_desk_can_publish() ? 'publish' : 'pending' ) . '">' . ( ministry_desk_can_publish() ? 'Publish' : 'Submit for review' ) . '</button>';
 	ministry_desk_delete_button( $post );
 	echo '</p>';
 	echo '<p class="mom-hint">Old versions stay downloadable but point people to the new one.</p></section></form></div></div>';
@@ -165,68 +165,66 @@ function ministry_desk_screen_service() {
 function ministry_desk_screen_faqs() {
 	$id    = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 	$topic = isset( $_GET['topic'] ) ? sanitize_text_field( wp_unslash( $_GET['topic'] ) ) : '';
-	$posts = ministry_posts( 'mom_faq', array( 'orderby' => 'menu_order', 'order' => 'ASC', 'post_status' => array( 'publish', 'draft', 'pending' ) ) );
-	if ( ! $id && $posts ) {
-		$id = $posts[0]->ID;
-	}
+	$posts = ministry_desk_posts( 'mom_faq', array( 'orderby' => 'menu_order', 'order' => 'ASC', 'posts_per_page' => 200 ) );
 	$missing = 0;
 	foreach ( $posts as $post ) {
 		if ( '' === trim( $post->post_content ) ) {
 			$missing++;
 		}
 	}
-	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-services' ) ) . '">Services</a> / FAQs', 'FAQs', 'Edit answers in place. Drag to change the order on the public FAQ page.', '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-services', array( 'view' => 'faqs', 'id' => 0, 'new' => 1 ) ) ) . '">+ Add question</a>' );
-	if ( isset( $_GET['new'] ) ) {
-		$id = 0;
-	}
+	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-services' ) ) . '">Services</a> / FAQs', 'FAQs', 'Collapse a question to drag others. Each card saves on its own.', '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-services', array( 'view' => 'faqs', 'new' => '1' ) ) ) . '">+ Add question</a>' );
 	echo '<div class="mom-split"><div><div class="mom-pills">';
 	echo '<a class="mom-pill' . ( '' === $topic ? ' is-on' : '' ) . '" href="' . esc_url( ministry_desk_url( 'mom-services', array( 'view' => 'faqs' ) ) ) . '">All (' . esc_html( (string) count( $posts ) ) . ')</a>';
 	echo '<a class="mom-pill' . ( 'missing' === $topic ? ' is-on' : '' ) . '" href="' . esc_url( ministry_desk_url( 'mom-services', array( 'view' => 'faqs', 'topic' => 'missing' ) ) ) . '">Answer missing (' . esc_html( (string) $missing ) . ')</a></div>';
-	ministry_desk_form_open( 'faq' );
+	echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="mom-faq-order">';
+	echo '<input type="hidden" name="action" value="ministry_desk_save"><input type="hidden" name="form" value="faq">';
+	echo '<input type="hidden" name="back" value="' . esc_attr( ministry_desk_url( 'mom-services', array( 'view' => 'faqs' ) ) ) . '">';
+	wp_nonce_field( 'ministry_desk_save' );
 	echo '<input type="hidden" name="order" value="' . esc_attr( implode( ',', wp_list_pluck( $posts, 'ID' ) ) ) . '">';
-	echo '<div class="mom-sortable">';
-	$open = $id ? get_post( $id ) : null;
-	if ( $open ) {
-		echo '<section class="mom-card" data-id="' . esc_attr( (string) $open->ID ) . '"><div class="mom-rowline"><span class="grip">⋮⋮</span>';
-		echo '<input type="hidden" name="post_id" value="' . esc_attr( (string) $open->ID ) . '">';
-		echo '<input name="post_title" value="' . esc_attr( $open->post_title ) . '"></div>';
-		echo '<label class="mom-label">Answer</label>';
-		ministry_desk_editor( 'post_content', $open->post_content );
-		echo '<div class="mom-grid-2">';
-		ministry_desk_field( 'Topic', 'topic', (string) get_post_meta( $open->ID, '_mom_topic', true ) );
-		ministry_desk_field( 'Source department', 'department', (string) get_post_meta( $open->ID, '_mom_department', true ) );
-		echo '</div><button class="mom-btn mom-btn-primary" name="intent" value="keep">Save question</button>';
-		ministry_desk_delete_button( $open );
-		echo '</section>';
-	} elseif ( isset( $_GET['new'] ) ) {
-		echo '<section class="mom-card"><input name="post_title" placeholder="New question">';
+	echo '<p><button class="mom-btn" name="intent" value="keep">Save order</button></p></form>';
+	if ( isset( $_GET['new'] ) ) {
+		ministry_desk_form_open( 'faq' );
+		echo '<section class="mom-card mom-faq-card is-open"><h2>New question</h2>';
+		echo '<input name="post_title" placeholder="New question">';
 		ministry_desk_editor( 'post_content', '' );
 		ministry_desk_field( 'Topic', 'topic', '' );
 		ministry_desk_field( 'Source department', 'department', '' );
-		echo '<button class="mom-btn mom-btn-primary">Save question</button></section>';
+		echo '<p class="mom-actions"><button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" name="intent" value="keep">Publish</button></p></section></form>';
 	}
+	echo '<div class="mom-sortable mom-faq-list" data-order-field="order" data-order-form=".mom-faq-order">';
 	foreach ( $posts as $post ) {
-		if ( $open && $post->ID === $open->ID ) {
-			continue;
-		}
 		if ( 'missing' === $topic && '' !== trim( $post->post_content ) ) {
 			continue;
 		}
-		echo '<div class="mom-person" data-id="' . esc_attr( (string) $post->ID ) . '"><a href="' . esc_url( ministry_desk_url( 'mom-services', array( 'view' => 'faqs', 'id' => $post->ID ) ) ) . '"><span class="grip">⋮⋮</span><span class="who"><b>' . esc_html( $post->post_title ) . '</b></span></a>';
+		$open = $id === $post->ID;
+		echo '<details class="mom-faq-card" data-id="' . esc_attr( (string) $post->ID ) . '"' . ( $open ? ' open' : '' ) . '>';
+		echo '<summary><span class="grip">⋮⋮</span><strong>' . esc_html( $post->post_title ? $post->post_title : 'Untitled question' ) . '</strong>';
 		if ( '' === trim( $post->post_content ) ) {
 			echo '<span class="mom-badge mom-badge-red">Answer missing</span>';
 		}
 		echo '<span class="mom-row-links">';
 		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-services', array( 'view' => 'faqs' ) ) );
-		echo '</span></div>';
+		echo '</span></summary>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		echo '<input type="hidden" name="action" value="ministry_desk_save"><input type="hidden" name="form" value="faq">';
+		echo '<input type="hidden" name="back" value="' . esc_attr( ministry_desk_url( 'mom-services', array( 'view' => 'faqs' ) ) ) . '">';
+		echo '<input type="hidden" name="post_id" value="' . esc_attr( (string) $post->ID ) . '">';
+		wp_nonce_field( 'ministry_desk_save' );
+		echo '<div class="mom-field"><label>Question</label><input name="post_title" value="' . esc_attr( $post->post_title ) . '"></div>';
+		echo '<label class="mom-label">Answer</label>';
+		ministry_desk_editor( 'post_content', $post->post_content );
+		echo '<div class="mom-grid-2">';
+		ministry_desk_field( 'Topic', 'topic', (string) get_post_meta( $post->ID, '_mom_topic', true ) );
+		ministry_desk_field( 'Source department', 'department', (string) get_post_meta( $post->ID, '_mom_department', true ) );
+		echo '</div><p class="mom-actions"><button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" name="intent" value="keep">Publish</button></p></form></details>';
 	}
-	echo '</div></form></div><div class="mom-side-col"><section class="mom-side-card"><h2>Before publishing</h2>';
+	echo '</div></div><div class="mom-side-col"><section class="mom-side-card"><h2>Before publishing</h2>';
 	if ( $missing ) {
 		echo '<div class="mom-note mom-note-red"><p><strong>' . esc_html( (string) $missing ) . ' questions have no answer yet.</strong> Unanswered questions are hidden from the public FAQ page.</p></div>';
 	} else {
 		echo '<p>Every question has an answer.</p>';
 	}
-	echo '<p class="mom-hint">Each answer names a source department, so the right team is asked to review it.</p></section></div></div>';
+	echo '<p class="mom-hint">Collapse a card to see the rest of the list and drag it into a new order, then save order.</p></section></div></div>';
 }
 
 /**
@@ -320,10 +318,11 @@ function ministry_desk_screen_event() {
 	ministry_desk_field( 'Who should attend', 'who', $post ? $post->post_content : '' );
 	echo '</section><section class="mom-card"><h2>Registration</h2>';
 	echo '<label class="mom-toggle"><input type="checkbox" name="accept_reg" value="1" ' . checked( ! $post || '1' === get_post_meta( $id, '_mom_accept_reg', true ), true, false ) . '> Accept registrations on the website</label>';
+	ministry_desk_field( 'Off-site registration link', 'reg_url', $post ? (string) get_post_meta( $id, '_mom_reg_url', true ) : '', array( 'type' => 'url', 'hint' => 'Use this when people register somewhere else. Leave empty to use the on-site form.' ) );
 	echo '<div class="mom-grid-2">';
 	ministry_desk_field( 'Places available', 'places', $post ? (string) get_post_meta( $id, '_mom_places', true ) : '' );
 	ministry_desk_field( 'Registrations close', 'reg_close', $post ? (string) get_post_meta( $id, '_mom_reg_close', true ) : '', array( 'type' => 'date' ) );
-	echo '</div><p class="mom-hint">Registrations arrive in Enquiries & Forms and can be exported to Excel.</p>';
+	echo '</div><p class="mom-hint">On-site registrations arrive on the Registrations page and can be exported as CSV.</p>';
 	echo '<label class="mom-toggle"><input type="checkbox" name="calendar" value="1" ' . checked( ! $post || '0' !== (string) get_post_meta( $id, '_mom_calendar', true ), true, false ) . '> Offer “Add to calendar” (.ics) download</label></section></div>';
 	echo '<div class="mom-side-col">';
 	ministry_desk_publish_card( $post, 'After the event date it moves to Past events automatically, and you’ll be asked to add photos.' );
@@ -342,20 +341,33 @@ function ministry_desk_screen_event() {
  * Album list.
  */
 function ministry_desk_screen_albums() {
-	$albums = ministry_albums();
-	ministry_desk_head( 'Photo albums', 'Photo albums', 'Albums appear on the photo gallery in this order.', '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-albums', array( 'view' => 'edit' ) ) ) . '">+ Upload photos</a>' );
+	$albums = ministry_desk_posts( 'mom_album', array( 'orderby' => 'menu_order', 'order' => 'ASC', 'posts_per_page' => 200 ) );
+	ministry_desk_head(
+		'Photo albums',
+		'Photo albums',
+		'Create an album first, then add photos — or upload pictures on their own.',
+		'<a class="mom-btn" href="' . esc_url( ministry_desk_url( 'mom-albums', array( 'view' => 'new' ) ) ) . '">New album</a> <a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-albums', array( 'view' => 'upload' ) ) ) . '">Upload photos</a>'
+	);
 	if ( ! $albums ) {
-		echo '<section class="mom-card"><p>No albums yet.</p></section>';
+		echo '<section class="mom-card"><p>No albums yet. Create an album or upload standalone photos.</p></section>';
 		return;
 	}
 	echo '<div class="mom-grid-3">';
 	foreach ( $albums as $album ) {
-		$cover = $album['photos'] ? $album['photos'][0]['url'] : '';
-		echo '<a class="mom-card" href="' . esc_url( ministry_desk_url( 'mom-albums', array( 'view' => 'edit', 'id' => $album['id'] ) ) ) . '">';
+		$photos = ministry_album_photos( $album->ID );
+		$cover  = $photos ? $photos[0]['url'] : '';
+		$count  = count( $photos );
+		$warn   = $count ? 'This album has ' . $count . ' photo(s). Deleting it keeps those photos as unassigned pictures. Continue?' : 'Delete this album?';
+		echo '<div class="mom-card">';
+		echo '<a href="' . esc_url( ministry_desk_url( 'mom-albums', array( 'view' => 'edit', 'id' => $album->ID ) ) ) . '">';
 		if ( $cover ) {
 			echo '<img src="' . esc_url( $cover ) . '" alt="" style="height:140px;width:100%;object-fit:cover;border-radius:8px">';
 		}
-		echo '<h2>' . esc_html( $album['title'] ) . '</h2><p class="mom-hint">' . esc_html( (string) count( $album['photos'] ) ) . ' photos · ' . esc_html( $album['year'] ) . '</p></a>';
+		echo '<h2>' . esc_html( $album->post_title ) . '</h2></a>';
+		echo '<p class="mom-hint">' . esc_html( (string) $count ) . ' photos · ' . esc_html( (string) get_post_meta( $album->ID, '_mom_year', true ) ) . '</p>';
+		echo '<p class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-albums', array( 'view' => 'edit', 'id' => $album->ID ) ) ) . '">Edit</a>';
+		ministry_desk_delete_link( $album->ID, ministry_desk_url( 'mom-albums' ), array( 'confirm' => $warn ) );
+		echo '</p></div>';
 	}
 	echo '</div>';
 }
@@ -373,11 +385,12 @@ function ministry_desk_screen_album() {
 			$missing++;
 		}
 	}
-	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-albums' ) ) . '">Photo albums</a>', $post ? $post->post_title : 'New album', $post ? count( $photos ) . ' photos' . ( $missing ? ' · ' . $missing . ' need alt text before publishing' : '' ) : 'Add photos, then write a short description for each one.', '<button class="mom-btn" form="mom-desk-form" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" form="mom-desk-form" name="intent" value="pending">Submit for review</button>' );
+	$warn = $photos ? 'This album has ' . count( $photos ) . ' photo(s). Deleting it keeps those photos as unassigned pictures. Continue?' : 'Delete this album?';
+	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-albums' ) ) . '">Photo albums</a>', $post ? $post->post_title : 'New album', $post ? count( $photos ) . ' photos' . ( $missing ? ' · ' . $missing . ' need alt text before publishing' : '' ) : 'Add photos, then write a short description for each one.', '<button class="mom-btn mom-save-draft" form="mom-desk-form" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" form="mom-desk-form" name="intent" value="publish">Publish</button>' );
 	ministry_desk_form_open( 'album' );
 	echo '<input type="hidden" name="post_id" value="' . esc_attr( (string) $id ) . '">';
 	echo '<div class="mom-split"><div class="mom-main-col">';
-	echo '<button type="button" class="mom-drop mom-add-photos"><span>Drop photos or browse<span>JPG or PNG · resized automatically</span></span></button>';
+	echo '<button type="button" class="mom-drop mom-add-photos"><span>Upload photos to this album<span>JPG or PNG · resized automatically</span></span></button>';
 	if ( $missing ) {
 		echo '<div class="mom-note mom-note-red"><p><strong>' . esc_html( (string) $missing ) . ' photos are missing alt text.</strong> The album can’t be submitted until every photo has a short description.</p></div>';
 	}
@@ -405,9 +418,94 @@ function ministry_desk_screen_album() {
 	ministry_desk_field( 'Location', 'location', $post ? (string) get_post_meta( $id, '_mom_location', true ) : '' );
 	ministry_desk_field( 'Default credit', 'credit', $post ? (string) get_post_meta( $id, '_mom_credit', true ) : 'MMMD Communications', array( 'hint' => 'Applied to all photos in this album; change any single photo if needed.' ) );
 	echo '<label class="mom-toggle"><input type="checkbox" name="show_credit" value="1" ' . checked( ! $post || '1' === get_post_meta( $id, '_mom_show_credit', true ), true, false ) . '> Show credit under photos</label>';
-	ministry_desk_delete_button( $post );
+	if ( $post ) {
+		echo '<p class="mom-row-links">';
+		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-albums' ), array( 'confirm' => $warn ) );
+		echo '</p>';
+	}
 	echo '</section></div></div></form>';
 	echo '<script type="text/template" id="mom-photo-template"><article class="mom-photo is-bad"><figure><img src="" alt=""><span class="grip">⋮⋮</span></figure><input type="hidden" class="mom-photo-id" name="mom_photos[__i__][id]" value=""><input name="mom_photos[__i__][caption]" placeholder="Caption"><input class="mom-alt" name="mom_photos[__i__][alt]" placeholder="Describe the photo for people who can’t see it"><button type="button" class="mom-btn mom-btn-small mom-remove-photo">Remove</button></article></script>';
+}
+
+/**
+ * Create an empty album.
+ */
+function ministry_desk_screen_album_new() {
+	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-albums' ) ) . '">Photo albums</a> / New album', 'New album', 'Name the album first. You can add photos after it exists.' );
+	ministry_desk_form_open( 'album-create' );
+	echo '<div class="mom-split"><div class="mom-main-col"><section class="mom-card"><h2>Album</h2>';
+	ministry_desk_field( 'Album name', 'post_title', '', array( 'required' => true ) );
+	echo '<div class="mom-grid-2">';
+	ministry_desk_field( 'Album category', 'album_cat', '' );
+	ministry_desk_field( 'Year or event date', 'event_date', wp_date( 'Y' ) );
+	echo '</div>';
+	ministry_desk_field( 'Location', 'location', '' );
+	ministry_desk_field( 'Default credit', 'credit', 'MMMD Communications' );
+	echo '</section></div><div class="mom-side-col"><section class="mom-side-card"><h2>Create</h2>';
+	echo '<button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button>';
+	echo '<button class="mom-btn mom-btn-primary" name="intent" value="publish">Publish</button>';
+	echo '<p class="mom-hint">After saving you can upload photos into this album or leave it empty.</p></section></div></div></form>';
+}
+
+/**
+ * All gallery photos, including pictures not in an album.
+ */
+function ministry_desk_screen_photos() {
+	$photos = ministry_gallery_photos();
+	$albums = ministry_desk_posts( 'mom_album', array( 'posts_per_page' => 200, 'orderby' => 'title', 'order' => 'ASC' ) );
+	ministry_desk_head( 'Photo albums / All photos', 'All photos', 'Assign pictures to albums or keep them standalone.', '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-albums', array( 'view' => 'upload' ) ) ) . '">Upload photos</a>' );
+	if ( ! $photos ) {
+		echo '<section class="mom-card"><p>No gallery photos yet.</p></section>';
+		return;
+	}
+	ministry_desk_form_open( 'photos' );
+	echo '<p class="mom-actions"><button class="mom-btn mom-btn-primary">Save assignments</button></p>';
+	echo '<div class="mom-photo-grid">';
+	foreach ( $photos as $index => $photo ) {
+		$url     = wp_get_attachment_image_url( $photo->ID, 'medium' );
+		$ids     = ministry_photo_album_ids( $photo->ID );
+		$caption = (string) $photo->post_excerpt;
+		$alt     = (string) get_post_meta( $photo->ID, '_wp_attachment_image_alt', true );
+		echo '<article class="mom-photo"><figure>';
+		if ( $url ) {
+			echo '<img src="' . esc_url( $url ) . '" alt="">';
+		}
+		echo '</figure>';
+		echo '<input type="hidden" name="photos[' . esc_attr( (string) $index ) . '][id]" value="' . esc_attr( (string) $photo->ID ) . '">';
+		echo '<input name="photos[' . esc_attr( (string) $index ) . '][caption]" value="' . esc_attr( $caption ) . '" placeholder="Caption">';
+		echo '<input name="photos[' . esc_attr( (string) $index ) . '][alt]" value="' . esc_attr( $alt ) . '" placeholder="Alt text">';
+		echo '<label class="mom-label">Albums</label><select name="photos[' . esc_attr( (string) $index ) . '][albums][]" multiple size="4">';
+		foreach ( $albums as $album ) {
+			echo '<option value="' . esc_attr( (string) $album->ID ) . '" ' . selected( in_array( $album->ID, $ids, true ), true, false ) . '>' . esc_html( $album->post_title ) . '</option>';
+		}
+		echo '</select>';
+		if ( ! $ids ) {
+			echo '<p class="mom-hint">Standalone — not in an album</p>';
+		}
+		echo '<p class="mom-row-links">';
+		ministry_desk_delete_link( 0, ministry_desk_url( 'mom-albums', array( 'view' => 'photos' ) ), array( 'attachment_id' => $photo->ID, 'confirm' => 'Delete this photo from the website?' ) );
+		echo '</p></article>';
+	}
+	echo '</div><p class="mom-actions"><button class="mom-btn mom-btn-primary">Save assignments</button></p></form>';
+}
+
+/**
+ * Upload photos that can stay standalone or go into albums.
+ */
+function ministry_desk_screen_photo_upload() {
+	$albums = ministry_desk_posts( 'mom_album', array( 'posts_per_page' => 200, 'orderby' => 'title', 'order' => 'ASC' ) );
+	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-albums' ) ) . '">Photo albums</a> / Upload', 'Upload photos', 'Leave albums unticked to keep pictures standalone.' );
+	ministry_desk_form_open( 'photos' );
+	echo '<div class="mom-split"><div class="mom-main-col">';
+	echo '<button type="button" class="mom-drop mom-add-photos"><span>Upload photos<span>JPG or PNG · they stay standalone unless you assign an album</span></span></button>';
+	echo '<div class="mom-photo-grid mom-sortable"></div>';
+	echo '</div><div class="mom-side-col"><section class="mom-side-card"><h2>Optional album</h2>';
+	echo '<p class="mom-hint">Choose albums for every photo in this upload. You can change this later on All photos.</p>';
+	foreach ( $albums as $album ) {
+		echo '<label class="mom-toggle"><input type="checkbox" class="mom-upload-album" value="' . esc_attr( (string) $album->ID ) . '"> ' . esc_html( $album->post_title ) . '</label>';
+	}
+	echo '<button class="mom-btn mom-btn-primary">Upload</button></section></div></div></form>';
+	echo '<script type="text/template" id="mom-photo-template"><article class="mom-photo"><figure><img src="" alt=""></figure><input type="hidden" class="mom-photo-id" name="photos[__i__][id]" value=""><input name="photos[__i__][caption]" placeholder="Caption"><input class="mom-alt" name="photos[__i__][alt]" placeholder="Describe the photo"><div class="mom-upload-albums"></div></article></script>';
 }
 
 /**
@@ -421,7 +519,7 @@ function ministry_desk_screen_people() {
 	}
 	$leaders = ministry_settings()['leaders'];
 	$save    = ministry_desk_can( 'people' ) ? '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save order</button> ' : '';
-	ministry_desk_head( 'People & Structure', 'People', 'Portraits, titles, and biographies used across the site. Drag to change the order on The Ministry and the homepage.', $save . '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => 'person' ) ) ) . '">+ Add person</a>' );
+	ministry_desk_head( 'Leadership', 'Leadership', 'Portraits, titles, and biographies used across the site. Drag to change the order on The Ministry and the homepage.', $save . '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => 'person' ) ) ) . '">+ Add person</a>' );
 	ministry_desk_form_open( 'people-order' );
 	echo '<input type="hidden" name="order" value="' . esc_attr( implode( ',', array_keys( is_array( $leaders ) ? $leaders : array() ) ) ) . '">';
 	echo '<div class="mom-split"><div class="mom-sortable">';
@@ -455,7 +553,7 @@ function ministry_desk_screen_org_list( $offices ) {
 	$form  = $offices ? 'offices-order' : 'departments-order';
 	$save  = ministry_desk_can( 'people' ) ? '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save order</button> ' : '';
 	$hint  = $offices ? 'Harare centres and provincial mining offices. Drag within each group to change the public Offices page.' : 'Head-office departments. Drag to change the public Departments page.';
-	ministry_desk_head( 'People & Structure / ' . $title, $title, $hint, $save . '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => $view ) ) ) . '">+ Add</a>' );
+	ministry_desk_head( 'Leadership / ' . $title, $title, $hint, $save . '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => $view ) ) ) . '">+ Add</a>' );
 	ministry_desk_form_open( $form );
 	if ( $offices ) {
 		$centres   = ministry_structure_apply_display_order( ministry_desk_posts( 'mom_department', array_merge( ministry_structure_query( 'centre' ), array( 'posts_per_page' => 200 ) ) ) );
@@ -505,7 +603,7 @@ function ministry_desk_screen_person() {
 	$photo   = ministry_desk_leader_photo( $leader );
 	$surname = isset( $leader['surname'] ) ? (string) $leader['surname'] : (string) $leader['name'];
 	$facts   = isset( $leader['facts'] ) && is_array( $leader['facts'] ) ? $leader['facts'] : array( '' );
-	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-people' ) ) . '">People</a> / Edit', $leader['name'] ? (string) $leader['name'] : 'New person', $leader['name'] ? 'Person' : 'Add a portrait, title, and short biography.' );
+	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-people' ) ) . '">Leadership</a> / Edit', $leader['name'] ? (string) $leader['name'] : 'New person', $leader['name'] ? 'Person' : 'Add a portrait, title, and short biography.' );
 	ministry_desk_form_open( 'person' );
 	if ( $index >= 0 ) {
 		echo '<input type="hidden" name="index" value="' . esc_attr( (string) $index ) . '">';
@@ -562,7 +660,7 @@ function ministry_desk_screen_person() {
  */
 function ministry_desk_screen_leadership() {
 	$leaders = ministry_settings()['leaders'];
-	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-people' ) ) . '">People & Structure</a> / Leadership team', 'Leadership Team', 'Choose who appears in “The Ministry” section of the home page and on the leadership page, and in what order.', '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save order</button>' );
+	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-people' ) ) . '">Leadership</a> / Homepage order', 'Homepage order', 'Choose who appears in “The Ministry” section of the home page and on the leadership page, and in what order.', '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save order</button>' );
 	ministry_desk_form_open( 'leadership' );
 	echo '<input type="hidden" name="order" value="' . esc_attr( implode( ',', array_keys( $leaders ) ) ) . '">';
 	echo '<div class="mom-split"><div class="mom-sortable">';
@@ -618,17 +716,12 @@ function ministry_desk_screen_structure() {
 	$leaders = ministry_settings()['leaders'];
 	$meta    = ministry_desk_meta();
 	$org     = isset( $meta['org'] ) && is_array( $meta['org'] ) ? $meta['org'] : array();
-	$groups  = array(
-		'1' => 'Corporate & support services',
-		'2' => 'Mining Development, Research & Beneficiation',
-		'3' => 'Mining Technical Services',
-		'4' => 'Provincial Mining Offices',
-	);
+	$groups  = ministry_desk_department_groups();
 	$buckets = array( '1' => array(), '2' => array(), '3' => array(), '4' => array() );
 	foreach ( ministry_desk_posts( 'mom_department', array( 'posts_per_page' => 200, 'orderby' => 'menu_order', 'order' => 'ASC' ) ) as $post ) {
 		$buckets[ ministry_desk_department_group( $post ) ][] = $post;
 	}
-	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-people' ) ) . '">People & Structure</a> / Organisational structure', 'Organisational structure', 'Drag groups and departments to reorder. The chart on About → Structure redraws itself.', '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save changes</button>' );
+	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-people' ) ) . '">Leadership</a> / Organisational structure', 'Organisational structure', 'Drag groups and departments to reorder. The chart on About → Structure redraws itself.', '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save changes</button>' );
 	ministry_desk_form_open( 'structure' );
 	echo '<div class="mom-split"><div class="mom-main-col"><section class="mom-card"><h2>Top of the structure</h2><div class="mom-grid-2">';
 	foreach ( array_slice( $leaders, 0, 4 ) as $leader ) {
@@ -726,7 +819,7 @@ function ministry_desk_screen_unit( $office ) {
 		ministry_desk_field( 'Department name', 'post_title', $post ? $post->post_title : '', array( 'required' => true ) );
 		echo '<div class="mom-grid-3">';
 		ministry_desk_field( 'Short name', 'short', $post ? (string) get_post_meta( $id, '_mom_short', true ) : '', array( 'hint' => 'Used in menus and badges.' ) );
-		ministry_desk_field( 'Group', 'group', $post ? ministry_desk_department_group( $post ) : '1', array( 'type' => 'select', 'options' => array( '1' => '01 Corporate & support', '2' => '02 Mining development', '3' => '03 Technical services', '4' => '04 Provincial offices' ) ) );
+		ministry_desk_field( 'Group', 'group', $post ? ministry_desk_department_group( $post ) : '1', array( 'type' => 'select', 'options' => ministry_desk_department_groups() ) );
 		echo '</div></section><section class="mom-card"><h2>What the department does</h2>';
 		ministry_desk_field( 'Purpose', 'purpose', $post ? (string) get_post_meta( $id, '_mom_mandate', true ) : '', array( 'type' => 'textarea', 'required' => true, 'hint' => 'Shown under the department name on its page.' ) );
 		ministry_desk_field( 'List summary', 'summary', $post ? (string) get_post_meta( $id, '_mom_summary', true ) : '', array( 'type' => 'textarea', 'hint' => 'Shorter mandate on the Departments list.' ) );
@@ -900,7 +993,7 @@ function ministry_desk_screen_opportunity() {
 	ministry_desk_field( 'Progress %', 'progress', $post ? (string) get_post_meta( $id, '_mom_progress', true ) : '', array( 'type' => 'number' ) );
 	ministry_desk_field( 'Target', 'target', $post ? (string) get_post_meta( $id, '_mom_target', true ) : '' );
 	ministry_desk_field( 'Agency short name', 'entity', $post ? (string) get_post_meta( $id, '_mom_entity', true ) : '' );
-	echo '</div><button class="mom-btn mom-btn-primary" name="intent" value="' . ( ministry_desk_can_publish() ? 'publish' : 'pending' ) . '">Save</button></section></form>';
+	echo '</div><p class="mom-actions"><button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" name="intent" value="' . ( ministry_desk_can_publish() ? 'publish' : 'pending' ) . '">' . ( ministry_desk_can_publish() ? 'Publish' : 'Submit for review' ) . '</button></p></section></form>';
 }
 
 /**
@@ -909,18 +1002,25 @@ function ministry_desk_screen_opportunity() {
 function ministry_desk_screen_enquiries() {
 	$type  = isset( $_GET['type'] ) ? sanitize_key( wp_unslash( $_GET['type'] ) ) : '';
 	$id    = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
-	$posts = ministry_desk_posts( 'mom_enquiry', array( 'posts_per_page' => 100 ) );
-	if ( ! $id && $posts ) {
-		$id = $posts[0]->ID;
-	}
-	$labels = array( 'minister' => 'Ask the Minister', 'complaint' => 'Complaint', 'investor' => 'Investor interest', 'general' => 'General', 'event' => 'Event registration' );
-	ministry_desk_head( 'Enquiries & Forms', 'Enquiries & Forms', 'Messages from the website’s forms. Personal details stay in this desk.', '<a class="mom-btn" href="' . esc_url( admin_url( 'admin-post.php?action=ministry_desk_save&form=export&_wpnonce=' . wp_create_nonce( 'ministry_desk_save' ) ) ) . '">Export to Excel</a>' );
+	$posts = ministry_desk_posts( 'mom_enquiry', array( 'posts_per_page' => 200 ) );
+	$labels = array(
+		'minister'     => 'Ask the Minister',
+		'complaint'    => 'Complaint',
+		'investor'     => 'Investor interest',
+		'general'      => 'General',
+		'compliment'   => 'Compliment',
+		'event'        => 'Event registration',
+		'registration' => 'Registration',
+	);
+	$heading = 'registration' === $type ? 'Registrations' : 'Enquiries & Forms';
+	$export  = admin_url( 'admin-post.php?action=ministry_desk_save&form=export&_wpnonce=' . wp_create_nonce( 'ministry_desk_save' ) . ( $type ? '&type=' . rawurlencode( $type ) : '' ) );
+	ministry_desk_head( $heading, $heading, 'Messages from the website’s forms. Personal details stay in this desk.', '<a class="mom-btn" href="' . esc_url( $export ) . '">Export CSV</a>' );
 	echo '<div class="mom-pills">';
 	echo '<a class="mom-pill' . ( '' === $type ? ' is-on' : '' ) . '" href="' . esc_url( ministry_desk_url( 'mom-enquiries' ) ) . '">All (' . esc_html( (string) count( $posts ) ) . ')</a>';
 	foreach ( $labels as $key => $label ) {
 		echo '<a class="mom-pill' . ( $type === $key ? ' is-on' : '' ) . '" href="' . esc_url( ministry_desk_url( 'mom-enquiries', array( 'type' => $key ) ) ) . '">' . esc_html( $label ) . '</a>';
 	}
-	echo '</div><div class="mom-split"><div class="mom-table-card"><table class="mom-table"><thead><tr><th>Form</th><th>Subject</th><th>Status</th><th>Received</th></tr></thead><tbody>';
+	echo '</div><div class="mom-split"><div class="mom-table-card"><table class="mom-table"><thead><tr><th>Form</th><th>Subject</th><th>From</th><th>Status</th><th>Received</th></tr></thead><tbody>';
 	foreach ( $posts as $post ) {
 		$item_type = (string) get_post_meta( $post->ID, '_mom_type', true );
 		if ( $type && $item_type !== $type ) {
@@ -929,7 +1029,11 @@ function ministry_desk_screen_enquiries() {
 		$status = (string) get_post_meta( $post->ID, '_mom_status', true );
 		$tone   = 'done' === $status || 'replied' === $status ? 'green' : ( 'assigned' === $status ? 'blue' : 'gold' );
 		echo '<tr><td>' . esc_html( isset( $labels[ $item_type ] ) ? $labels[ $item_type ] : 'Enquiry' ) . '</td>';
-		echo '<td><a class="title" href="' . esc_url( ministry_desk_url( 'mom-enquiries', array( 'id' => $post->ID, 'type' => $type ) ) ) . '">' . esc_html( $post->post_title ) . '</a><div class="mom-hint">' . esc_html( (string) get_post_meta( $post->ID, '_mom_name', true ) ) . '</div></td><td>';
+		echo '<td><a class="title" href="' . esc_url( ministry_desk_url( 'mom-enquiries', array( 'id' => $post->ID, 'type' => $type ) ) ) . '">' . esc_html( $post->post_title ) . '</a>';
+		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-enquiries', array( 'id' => $post->ID, 'type' => $type ) ) ) . '">View</a>';
+		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-enquiries', $type ? array( 'type' => $type ) : array() ) );
+		echo '</div></td>';
+		echo '<td>' . esc_html( (string) get_post_meta( $post->ID, '_mom_name', true ) ) . '<div class="mom-hint">' . esc_html( (string) get_post_meta( $post->ID, '_mom_email', true ) ) . '</div></td><td>';
 		ministry_desk_badge( $status ? ucfirst( $status ) : 'New', $tone );
 		echo '</td><td>' . esc_html( human_time_diff( strtotime( $post->post_date ) ) ) . ' ago</td></tr>';
 	}
@@ -939,15 +1043,31 @@ function ministry_desk_screen_enquiries() {
 	if ( $current && 'mom_enquiry' === $current->post_type ) {
 		ministry_desk_form_open( 'enquiry' );
 		echo '<input type="hidden" name="post_id" value="' . esc_attr( (string) $current->ID ) . '">';
+		$item_type = (string) get_post_meta( $current->ID, '_mom_type', true );
 		echo '<section class="mom-side-card"><h2>' . esc_html( $current->post_title ) . '</h2>';
-		echo '<div class="mom-quote">“' . esc_html( $current->post_content ) . '”</div>';
-		echo '<p>' . esc_html( (string) get_post_meta( $current->ID, '_mom_name', true ) ) . ' · ' . esc_html( (string) get_post_meta( $current->ID, '_mom_email', true ) ) . '</p>';
-		ministry_desk_field( 'Assign to department', 'assign', (string) get_post_meta( $current->ID, '_mom_assign', true ) );
+		echo '<p><strong>Form</strong><br>' . esc_html( isset( $labels[ $item_type ] ) ? $labels[ $item_type ] : $item_type ) . '</p>';
+		echo '<p><strong>Received</strong><br>' . esc_html( ministry_desk_date( $current->post_date ) ) . '</p>';
+		echo '<p><strong>Name</strong><br>' . esc_html( (string) get_post_meta( $current->ID, '_mom_name', true ) ) . '</p>';
+		echo '<p><strong>Email</strong><br>' . esc_html( (string) get_post_meta( $current->ID, '_mom_email', true ) ) . '</p>';
+		echo '<p><strong>Phone</strong><br>' . esc_html( (string) get_post_meta( $current->ID, '_mom_phone', true ) ) . '</p>';
+		echo '<p><strong>Office</strong><br>' . esc_html( (string) get_post_meta( $current->ID, '_mom_office', true ) ) . '</p>';
+		$org = (string) get_post_meta( $current->ID, '_mom_org', true );
+		if ( $org ) {
+			echo '<p><strong>Organisation</strong><br>' . esc_html( $org ) . '</p>';
+		}
+		$event = (string) get_post_meta( $current->ID, '_mom_event', true );
+		if ( $event ) {
+			echo '<p><strong>Event</strong><br>' . esc_html( $event ) . '</p>';
+		}
+		echo '<p><strong>Message</strong></p><div class="mom-quote">' . esc_html( $current->post_content ) . '</div>';
 		ministry_desk_field( 'Reply due by', 'due', (string) get_post_meta( $current->ID, '_mom_due', true ), array( 'type' => 'date' ) );
 		ministry_desk_field( 'Internal note', 'note', (string) get_post_meta( $current->ID, '_mom_note', true ), array( 'type' => 'textarea', 'hint' => 'Only staff can see this.' ) );
 		$email = (string) get_post_meta( $current->ID, '_mom_email', true );
 		echo '<p class="mom-actions"><a class="mom-btn mom-btn-primary" href="mailto:' . esc_attr( $email ) . '?subject=' . rawurlencode( $current->post_title ) . '">Reply by email</a>';
-		echo '<button class="mom-btn" name="mark" value="done">Mark done</button></p></section></form>';
+		echo '<button class="mom-btn" name="mark" value="done">Mark done</button></p>';
+		echo '<p class="mom-row-links">';
+		ministry_desk_delete_link( $current->ID, ministry_desk_url( 'mom-enquiries', $type ? array( 'type' => $type ) : array() ) );
+		echo '</p></section></form>';
 	}
 	echo '</div></div>';
 	echo '<div class="mom-note mom-note-blue"><p>Forms collect only what’s needed, ask for consent, and are protected by spam checks — in line with the Cyber and Data Protection Act [Chapter 12:07].</p></div>';

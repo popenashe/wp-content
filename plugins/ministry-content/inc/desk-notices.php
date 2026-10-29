@@ -129,19 +129,52 @@ function ministry_desk_publish_card( $post, $note ) {
 		echo '<div class="mom-note mom-note-gold"><p>' . esc_html( $note ) . '</p></div>';
 	}
 	echo '<div class="mom-publish-actions">';
-	if ( $post && 'publish' === $post->post_status ) {
-		echo '<a class="mom-btn mom-btn-ghost" href="' . esc_url( get_permalink( $post ) ) . '" target="_blank" rel="noopener">' . ministry_desk_icon( 'eye' ) . ' Preview</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	if ( $post ) {
+		echo '<a class="mom-btn mom-btn-ghost" href="' . esc_url( ministry_desk_preview_url( $post ) ) . '" target="_blank" rel="noopener">' . ministry_desk_icon( 'eye' ) . ' Preview</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}
 	if ( $can && $post && 'publish' === $post->post_status ) {
-		echo '<button class="mom-btn mom-btn-primary" name="intent" value="keep">Update</button>';
+		echo '<button class="mom-btn mom-btn-primary" name="intent" value="keep">Publish</button>';
 	} elseif ( $can ) {
 		echo '<button class="mom-btn mom-btn-primary" name="intent" value="publish">Publish</button>';
 	} else {
 		echo '<button class="mom-btn mom-btn-primary" name="intent" value="pending">Submit for review</button>';
 	}
-	echo '</div><button class="mom-save-draft" name="intent" value="draft">Save draft</button>';
+	echo '</div><button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button>';
 	ministry_desk_delete_button( $post );
 	echo '</section>';
+}
+
+/**
+ * Public URL for a desk Preview button.
+ *
+ * @param WP_Post $post Record.
+ */
+function ministry_desk_preview_url( $post ) {
+	if ( ! $post instanceof WP_Post ) {
+		return home_url( '/' );
+	}
+	if ( 'mom_department' === $post->post_type ) {
+		$office = '1' === (string) get_post_meta( $post->ID, '_mom_provincial', true ) || '1' === (string) get_post_meta( $post->ID, '_mom_centre', true );
+		if ( $office ) {
+			$anchor = $post->post_name ? $post->post_name : sanitize_title( $post->post_title );
+			return trailingslashit( ministry_site_url( 'offices' ) ) . '#' . rawurlencode( $anchor );
+		}
+		if ( function_exists( 'ministry_front_department_link' ) ) {
+			return ministry_front_department_link( $post );
+		}
+		return ministry_site_url( 'departments' );
+	}
+	if ( 'mom_service' === $post->post_type ) {
+		return trailingslashit( ministry_site_url( 'services' ) ) . $post->post_name . '/';
+	}
+	if ( 'mom_event' === $post->post_type ) {
+		return ministry_site_url( 'events' );
+	}
+	if ( 'mom_album' === $post->post_type ) {
+		return ministry_site_url( 'gallery' );
+	}
+	$link = get_permalink( $post );
+	return $link ? $link : home_url( '/' );
 }
 
 /**
@@ -190,7 +223,6 @@ function ministry_desk_sidebar() {
 			'icon' => 'doc',
 			'children' => array(
 				array( 'label' => 'All documents', 'args' => array() ),
-				array( 'label' => 'Add document', 'args' => array( 'add' => '1' ) ),
 			),
 		),
 		array(
@@ -204,14 +236,14 @@ function ministry_desk_sidebar() {
 		),
 		array(
 			'page' => 'mom-people',
-			'label' => 'People & Structure',
+			'label' => 'Leadership',
 			'icon' => 'people',
 			'children' => array(
-				array( 'label' => 'People', 'args' => array() ),
+				array( 'label' => 'Leadership', 'args' => array() ),
 				array( 'label' => 'Departments', 'args' => array( 'view' => 'departments' ) ),
 				array( 'label' => 'Offices', 'args' => array( 'view' => 'offices' ) ),
 				array( 'label' => 'Organisational structure', 'args' => array( 'view' => 'structure' ) ),
-				array( 'label' => 'Leadership team', 'args' => array( 'view' => 'leadership' ) ),
+				array( 'label' => 'Homepage order', 'args' => array( 'view' => 'leadership' ) ),
 			),
 		),
 		array(
@@ -220,7 +252,9 @@ function ministry_desk_sidebar() {
 			'icon' => 'camera',
 			'children' => array(
 				array( 'label' => 'All albums', 'args' => array() ),
-				array( 'label' => 'Upload photos', 'args' => array( 'view' => 'edit' ) ),
+				array( 'label' => 'New album', 'args' => array( 'view' => 'new' ) ),
+				array( 'label' => 'All photos', 'args' => array( 'view' => 'photos' ) ),
+				array( 'label' => 'Upload photos', 'args' => array( 'view' => 'upload' ) ),
 			),
 		),
 		array(
@@ -249,7 +283,8 @@ function ministry_desk_sidebar() {
 				array( 'label' => 'Ask the Minister', 'args' => array( 'type' => 'minister' ) ),
 				array( 'label' => 'Complaints', 'args' => array( 'type' => 'complaint' ) ),
 				array( 'label' => 'Investor interest', 'args' => array( 'type' => 'investor' ) ),
-				array( 'label' => 'Event registrations', 'args' => array( 'type' => 'event' ) ),
+				array( 'label' => 'General enquiries', 'args' => array( 'type' => 'general' ) ),
+				array( 'label' => 'Registrations', 'args' => array( 'type' => 'registration' ) ),
 			),
 		),
 		array(
@@ -605,7 +640,7 @@ function ministry_desk_screen_notices() {
 		if ( '1' === get_post_meta( $post->ID, '_mom_banner', true ) ) {
 			echo '<div class="mom-home-flag">Homepage banner</div>';
 		}
-		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-notices', $edit ) ) . '">Edit</a> · <a href="' . esc_url( get_permalink( $post ) ) . '">Preview</a> · <a href="' . esc_url( ministry_desk_url( 'mom-notices', array( 'view' => 'translate', 'id' => $post->ID, 'lang' => 'sn' ) ) ) . '">Translate</a>';
+		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-notices', $edit ) ) . '">Edit</a> · <a href="' . esc_url( ministry_desk_preview_url( $post ) ) . '">Preview</a> · <a href="' . esc_url( ministry_desk_url( 'mom-notices', array( 'view' => 'translate', 'id' => $post->ID, 'lang' => 'sn' ) ) ) . '">Translate</a>';
 		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-notices' ) );
 		echo '</div></td>';
 		echo '<td>';
@@ -633,20 +668,27 @@ function ministry_desk_screen_notice() {
 	);
 	ministry_desk_form_open( 'notice' );
 	echo '<input type="hidden" name="post_id" value="' . esc_attr( (string) $id ) . '">';
+	$thumb = $post ? (int) get_post_thumbnail_id( $post ) : 0;
 	echo '<div class="mom-split"><div class="mom-main-col">';
-	echo '<section class="mom-card"><h2>Notice details</h2><div class="mom-grid-3">';
+	echo '<section class="mom-card"><h2>Notice details</h2><div class="mom-grid-2">';
 	ministry_desk_field( 'Notice number', 'notice_number', $number, array( 'readonly' => ! ministry_desk_can( 'notice_numbers' ), 'badges' => array( 'AUTO', 'Director only' ), 'hint' => 'Next number in sequence. Only a role that can change notice numbers may edit this.' ) );
 	ministry_desk_field( 'Type', 'kind_label', 'Public notice', array( 'readonly' => true ) );
 	ministry_desk_field( 'Date issued', 'issued', $post ? (string) get_post_meta( $id, '_mom_issued', true ) : wp_date( 'Y-m-d' ), array( 'type' => 'date', 'required' => true ) );
-	echo '</div><div class="mom-grid-3">';
 	ministry_desk_field( 'Takes effect', 'effect', $post ? (string) get_post_meta( $id, '_mom_effect', true ) : 'Immediately' );
 	ministry_desk_field( 'Deadline (optional)', 'deadline', $post ? (string) get_post_meta( $id, '_mom_deadline', true ) : '', array( 'type' => 'date', 'hint' => 'Shown as a highlighted deadline on the notice.' ) );
-	echo '<div class="mom-field"><label>Applies to</label>';
-	$applies = $post ? (array) get_post_meta( $id, '_mom_applies', true ) : array( 'All provinces' );
-	ministry_desk_chips( 'applies', $applies );
-	echo '</div></div>';
-	ministry_desk_field( 'Short summary', 'post_excerpt', $post ? $post->post_excerpt : '', array( 'type' => 'textarea', 'required' => true, 'hint' => 'Shown on cards and search results. 160 characters maximum.' ) );
-	echo '</section><section class="mom-card"><h2>Notice text</h2>';
+	echo '</div>';
+	ministry_desk_field( 'Short summary', 'post_excerpt', $post ? $post->post_excerpt : '', array( 'type' => 'textarea', 'required' => true, 'hint' => 'Shown on cards and search results. 160 characters maximum. The public listing uses this instead of a title.' ) );
+	echo '</section><section class="mom-card"><h2>Cover image</h2><div class="mom-photo-edit">';
+	echo '<div><input type="hidden" id="mom-notice-thumb" name="thumbnail_id" value="' . esc_attr( (string) $thumb ) . '">';
+	echo '<div class="mom-pick-preview">';
+	if ( $thumb ) {
+		echo wp_get_attachment_image( $thumb, 'medium' );
+	}
+	echo '</div><p><button type="button" class="mom-btn mom-pick" data-target="mom-notice-thumb" data-library="image" data-aspect="16:9">Upload cover image</button></p></div>';
+	echo '<div>';
+	ministry_desk_field( 'Photo description (alt text)', 'alt', $thumb ? (string) get_post_meta( $thumb, '_wp_attachment_image_alt', true ) : '', array( 'required' => true ) );
+	ministry_desk_field( 'Caption / credit', 'caption', $post ? (string) get_post_meta( $id, '_mom_caption', true ) : '' );
+	echo '</div></div></section><section class="mom-card"><h2>Notice text</h2>';
 	ministry_desk_editor( 'post_content', $post ? $post->post_content : '' );
 	echo '</section><section class="mom-card"><h2>Signed and attached</h2><div class="mom-grid-2">';
 	ministry_desk_field( 'Signed by', 'signed_by', $post ? (string) get_post_meta( $id, '_mom_signed_by', true ) : '', array( 'required' => true, 'hint' => 'Name and title are saved with the notice, so they stay correct if the person later changes role.' ) );
@@ -669,10 +711,10 @@ function ministry_desk_screen_notice() {
 	ministry_desk_publish_card( $post, $note );
 	ministry_desk_languages_card( $id, 'mom-notices' );
 	echo '<section class="mom-side-card"><h2>Checklist</h2><ul class="mom-check">';
-	echo '<li><span class="' . ( $title && $post && $post->post_excerpt ? 'mom-ok' : 'mom-warn' ) . '">✓</span> Title and summary</li>';
+	echo '<li><span class="' . ( $post && $post->post_excerpt ? 'mom-ok' : 'mom-warn' ) . '">✓</span> Summary</li>';
 	echo '<li><span class="' . ( $post && get_post_meta( $id, '_mom_signed_by', true ) ? 'mom-ok' : 'mom-warn' ) . '">✓</span> Signed by</li>';
 	echo '<li><span class="' . ( $pdf ? 'mom-ok' : 'mom-warn' ) . '">✓</span> Signed PDF attached</li>';
-	echo '<li><span class="mom-warn">!</span> Social share image (optional)</li></ul></section>';
+	echo '<li><span class="' . ( $thumb ? 'mom-ok' : 'mom-warn' ) . '">✓</span> Cover image</li></ul></section>';
 	if ( $post ) {
 		$revs = wp_get_post_revisions( $id );
 		echo '<section class="mom-side-card"><h2>Revisions</h2><p>' . esc_html( (string) count( $revs ) ) . ' saved versions.</p></section>';
