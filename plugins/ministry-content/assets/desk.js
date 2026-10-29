@@ -339,4 +339,11 @@
   });
 
   refreshHomePreview();
+
+  function toggleCustomCaps() {
+    var role = $("select[name=role]").val();
+    $("[data-custom-caps]").prop("hidden", role !== "mom_custom");
+  }
+  $(document).on("change", "select[name=role]", toggleCustomCaps);
+  toggleCustomCaps();
 })(jQuery);

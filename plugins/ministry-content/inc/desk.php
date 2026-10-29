@@ -9,6 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require MINISTRY_CONTENT_DIR . 'inc/desk-caps.php';
 require MINISTRY_CONTENT_DIR . 'inc/desk-notices.php';
 require MINISTRY_CONTENT_DIR . 'inc/desk-save.php';
 
@@ -48,17 +49,7 @@ function ministry_desk_register() {
 			'supports'     => array( 'title', 'editor', 'excerpt', 'thumbnail', 'revisions', 'author' ),
 		)
 	);
-	if ( ! get_role( 'mom_translator' ) ) {
-		add_role(
-			'mom_translator',
-			'Translator',
-			array(
-				'read'         => true,
-				'edit_posts'   => true,
-				'upload_files' => true,
-			)
-		);
-	}
+	ministry_desk_sync_roles();
 }
 
 /**
@@ -86,10 +77,18 @@ function ministry_desk_menus() {
 }
 
 /**
+ * Desk screens use the navy shell. Other admin screens (Wordfence, Plugins) keep the WordPress menu.
+ */
+function ministry_desk_is_desk_screen() {
+	$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+	return 0 === strpos( $page, 'mom-' );
+}
+
+/**
  * Hide the WordPress menus the mockups keep off the staff sidebar.
  */
 function ministry_desk_hide_stock_menus() {
-	if ( ! current_user_can( 'edit_posts' ) ) {
+	if ( ! ministry_desk_can_open() ) {
 		return;
 	}
 	$slugs = array(
@@ -98,13 +97,15 @@ function ministry_desk_hide_stock_menus() {
 		'upload.php',
 		'edit.php?post_type=page',
 		'edit-comments.php',
-		'themes.php',
-		'plugins.php',
-		'users.php',
-		'tools.php',
-		'options-general.php',
 		'ministry-settings',
 	);
+	if ( ! ministry_desk_can( 'users' ) ) {
+		$slugs[] = 'themes.php';
+		$slugs[] = 'plugins.php';
+		$slugs[] = 'users.php';
+		$slugs[] = 'tools.php';
+		$slugs[] = 'options-general.php';
+	}
 	foreach ( array( 'mom_news', 'mom_event', 'mom_document', 'mom_department', 'mom_album', 'mom_banner', 'mom_opportunity', 'mom_faq', 'mom_enquiry', 'mom_media' ) as $type ) {
 		$slugs[] = 'edit.php?post_type=' . $type;
 	}
@@ -117,7 +118,7 @@ function ministry_desk_hide_stock_menus() {
  * Styles and scripts for every admin screen, so the shell is consistent.
  */
 function ministry_desk_assets() {
-	if ( ! is_admin() || ! current_user_can( 'edit_posts' ) ) {
+	if ( ! is_admin() || ! ministry_desk_can_open() || ! ministry_desk_is_desk_screen() ) {
 		return;
 	}
 	$css = MINISTRY_CONTENT_DIR . 'assets/desk.css';
@@ -146,7 +147,7 @@ add_action( 'wp_ajax_ministry_desk_crop', 'ministry_desk_crop_image' );
  */
 function ministry_desk_crop_image() {
 	check_ajax_referer( 'ministry_desk_crop', 'nonce' );
-	if ( ! current_user_can( 'upload_files' ) ) {
+	if ( ! current_user_can( 'upload_files' ) || ! ministry_desk_can_open() ) {
 		wp_send_json_error( array( 'message' => 'You cannot crop images.' ), 403 );
 	}
 	$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
@@ -196,7 +197,7 @@ function ministry_desk_crop_image() {
  * @param string $classes Body classes.
  */
 function ministry_desk_body_class( $classes ) {
-	if ( ! current_user_can( 'edit_posts' ) ) {
+	if ( ! ministry_desk_can_open() || ! ministry_desk_is_desk_screen() ) {
 		return $classes;
 	}
 	return $classes . ' mom-desk-ui';
@@ -206,7 +207,7 @@ function ministry_desk_body_class( $classes ) {
  * Send the default dashboard to the staff desk.
  */
 function ministry_desk_leave_dashboard() {
-	if ( ! current_user_can( 'edit_posts' ) ) {
+	if ( ! ministry_desk_can_open() ) {
 		return;
 	}
 	wp_safe_redirect( admin_url( 'admin.php?page=mom-desk' ) );
@@ -260,7 +261,7 @@ function ministry_desk_redirect_editor() {
  * The old settings screen stays available with ?classic=1.
  */
 function ministry_desk_redirect_settings() {
-	if ( ! empty( $_GET['classic'] ) || ! current_user_can( 'edit_posts' ) ) {
+	if ( ! empty( $_GET['classic'] ) || ! ministry_desk_can_open() ) {
 		return;
 	}
 	wp_safe_redirect( admin_url( 'admin.php?page=mom-facts' ) );
@@ -287,7 +288,7 @@ function ministry_desk_capture_language() {
  * Sidebar and top bar.
  */
 function ministry_desk_chrome() {
-	if ( ! current_user_can( 'edit_posts' ) ) {
+	if ( ! ministry_desk_can_open() || ! ministry_desk_is_desk_screen() ) {
 		return;
 	}
 	ministry_desk_sidebar();
@@ -347,15 +348,10 @@ function ministry_desk_view() {
  * @param WP_User $user User.
  */
 function ministry_desk_role_label( $user ) {
-	$roles = (array) $user->roles;
-	if ( in_array( 'administrator', $roles, true ) ) {
-		return 'Administrator';
-	}
-	if ( in_array( 'editor', $roles, true ) ) {
-		return 'Communications Director';
-	}
-	if ( in_array( 'mom_translator', $roles, true ) ) {
-		return 'Translator';
+	$options = ministry_desk_role_options();
+	$role    = ministry_desk_user_role( $user );
+	if ( isset( $options[ $role ] ) ) {
+		return 'mom_translator' === $role ? 'Translator' : $options[ $role ];
 	}
 	return 'Content Officer';
 }
@@ -381,7 +377,7 @@ function ministry_desk_initials( $user ) {
  * @return bool
  */
 function ministry_desk_can_publish() {
-	return current_user_can( 'publish_posts' );
+	return ministry_desk_can( 'publish' );
 }
 
 /**
@@ -702,8 +698,11 @@ function ministry_desk_department_group( $post ) {
  * Route the current desk page.
  */
 function ministry_desk_router() {
-	if ( ! current_user_can( 'edit_posts' ) ) {
+	if ( ! ministry_desk_can_open() ) {
 		wp_die( esc_html__( 'You cannot open the staff desk.', 'ministry-content' ) );
+	}
+	if ( ! ministry_desk_can_page( ministry_desk_page(), ministry_desk_view() ) ) {
+		wp_die( esc_html__( 'Your role cannot open this screen.', 'ministry-content' ) );
 	}
 	if ( isset( $_GET['saved'] ) ) {
 		echo '<p class="mom-flash" role="status">Saved.</p>';

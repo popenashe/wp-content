@@ -13,12 +13,16 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Save a desk form and return to the screen.
  */
 function ministry_desk_handle_save() {
-	if ( ! current_user_can( 'edit_posts' ) ) {
+	if ( ! ministry_desk_can_open() ) {
 		wp_die( esc_html__( 'You cannot save this.', 'ministry-content' ) );
 	}
 	check_admin_referer( 'ministry_desk_save' );
 	$raw  = isset( $_POST['form'] ) ? wp_unslash( $_POST['form'] ) : ( isset( $_GET['form'] ) ? wp_unslash( $_GET['form'] ) : '' );
 	$form = sanitize_key( $raw );
+	$need = ministry_desk_form_cap( $form );
+	if ( $need && ! ministry_desk_can( $need ) ) {
+		wp_die( esc_html__( 'Your role cannot save this.', 'ministry-content' ) );
+	}
 	$back = isset( $_REQUEST['back'] ) ? esc_url_raw( wp_unslash( $_REQUEST['back'] ) ) : ministry_desk_url( 'mom-desk' );
 	$id   = ministry_desk_save_form( $form );
 	if ( $id ) {
@@ -124,8 +128,8 @@ function ministry_desk_save_form( $form ) {
  */
 function ministry_desk_save_delete() {
 	if ( isset( $_REQUEST['leader_index'] ) && '' !== (string) wp_unslash( $_REQUEST['leader_index'] ) ) {
-		if ( ! ministry_desk_can_publish() ) {
-			wp_die( esc_html__( 'Only a Communications Director can remove people.', 'ministry-content' ) );
+		if ( ! ministry_desk_can( 'people' ) || ! ministry_desk_can_publish() ) {
+			wp_die( esc_html__( 'Your role cannot remove people.', 'ministry-content' ) );
 		}
 		$index   = (int) wp_unslash( $_REQUEST['leader_index'] );
 		$leaders = ministry_settings()['leaders'];
@@ -137,8 +141,8 @@ function ministry_desk_save_delete() {
 		return;
 	}
 	if ( isset( $_REQUEST['entity_index'] ) && '' !== (string) wp_unslash( $_REQUEST['entity_index'] ) ) {
-		if ( ! ministry_desk_can_publish() ) {
-			wp_die( esc_html__( 'Only a Communications Director can remove an agency.', 'ministry-content' ) );
+		if ( ! ministry_desk_can( 'agencies' ) || ! ministry_desk_can_publish() ) {
+			wp_die( esc_html__( 'Your role cannot remove an agency.', 'ministry-content' ) );
 		}
 		$index    = (int) wp_unslash( $_REQUEST['entity_index'] );
 		$entities = ministry_settings()['entities'];
@@ -153,6 +157,10 @@ function ministry_desk_save_delete() {
 	if ( ! $id || ! current_user_can( 'delete_post', $id ) ) {
 		return;
 	}
+	$type_cap = ministry_desk_type_cap( (string) get_post_type( $id ) );
+	if ( $type_cap && ! ministry_desk_can( $type_cap ) ) {
+		wp_die( esc_html__( 'Your role cannot delete this.', 'ministry-content' ) );
+	}
 	wp_trash_post( $id );
 	ministry_desk_log( 'deleted ' . get_the_title( $id ) );
 }
@@ -164,6 +172,10 @@ function ministry_desk_save_delete() {
  */
 function ministry_desk_delete_button( $post ) {
 	if ( ! $post || ! current_user_can( 'delete_post', $post->ID ) ) {
+		return;
+	}
+	$type_cap = ministry_desk_type_cap( $post->post_type );
+	if ( $type_cap && ! ministry_desk_can( $type_cap ) ) {
 		return;
 	}
 	echo '<button class="mom-btn mom-btn-danger" name="form" value="delete" onclick="return confirm(\'Remove this from the website? It can be restored from Trash in WordPress.\')">Delete</button>';
@@ -179,6 +191,12 @@ function ministry_desk_delete_button( $post ) {
 function ministry_desk_delete_link( $id, $back = '', $extra = array() ) {
 	if ( $id && ! current_user_can( 'delete_post', $id ) ) {
 		return;
+	}
+	if ( $id ) {
+		$type_cap = ministry_desk_type_cap( (string) get_post_type( $id ) );
+		if ( $type_cap && ! ministry_desk_can( $type_cap ) ) {
+			return;
+		}
 	}
 	if ( ! $id && empty( $extra ) ) {
 		return;
@@ -259,7 +277,7 @@ function ministry_desk_save_story( $form ) {
 		return 0;
 	}
 	$number = isset( $_POST['notice_number'] ) ? sanitize_text_field( wp_unslash( $_POST['notice_number'] ) ) : '';
-	if ( 'notice' === $kind && ( '' === $number || ! ministry_desk_can_publish() ) ) {
+	if ( 'notice' === $kind && ( '' === $number || ! ministry_desk_can( 'notice_numbers' ) ) ) {
 		$existing = (string) get_post_meta( $id, '_mom_number', true );
 		$number   = $existing ? $existing : ministry_desk_next_notice_number();
 	}
@@ -626,11 +644,8 @@ function ministry_desk_save_person() {
  * Reorder the home leadership list.
  */
 function ministry_desk_save_leadership() {
-	if ( ! current_user_can( 'edit_posts' ) ) {
-		wp_die( esc_html__( 'You cannot save this.', 'ministry-content' ) );
-	}
-	if ( ! ministry_desk_can_publish() ) {
-		wp_die( esc_html__( 'Only a Communications Director can change the leadership order.', 'ministry-content' ) );
+	if ( ! ministry_desk_can( 'people' ) ) {
+		wp_die( esc_html__( 'Your role cannot change the leadership order.', 'ministry-content' ) );
 	}
 	$leaders = ministry_settings()['leaders'];
 	$order   = isset( $_POST['order'] ) ? sanitize_text_field( wp_unslash( $_POST['order'] ) ) : '';
@@ -655,8 +670,8 @@ function ministry_desk_save_leadership() {
  * Reorder people on The Ministry and the homepage.
  */
 function ministry_desk_save_people_order() {
-	if ( ! ministry_desk_can_publish() ) {
-		wp_die( esc_html__( 'Only a Communications Director can change the people order.', 'ministry-content' ) );
+	if ( ! ministry_desk_can( 'people' ) ) {
+		wp_die( esc_html__( 'Your role cannot change the people order.', 'ministry-content' ) );
 	}
 	$leaders = ministry_settings()['leaders'];
 	if ( ! is_array( $leaders ) ) {
@@ -688,8 +703,8 @@ function ministry_desk_save_people_order() {
  * @param string $order Comma-separated post IDs.
  */
 function ministry_desk_save_id_order( $order ) {
-	if ( ! ministry_desk_can_publish() ) {
-		wp_die( esc_html__( 'Only a Communications Director can change this order.', 'ministry-content' ) );
+	if ( ! ministry_desk_can( 'people' ) ) {
+		wp_die( esc_html__( 'Your role cannot change this order.', 'ministry-content' ) );
 	}
 	$position = 0;
 	foreach ( array_filter( array_map( 'absint', explode( ',', (string) $order ) ) ) as $id ) {
@@ -707,8 +722,8 @@ function ministry_desk_save_id_order( $order ) {
  * Store department groups and the top of the structure.
  */
 function ministry_desk_save_structure() {
-	if ( ! ministry_desk_can_publish() ) {
-		wp_die( esc_html__( 'Only a Communications Director can change the structure.', 'ministry-content' ) );
+	if ( ! ministry_desk_can( 'people' ) ) {
+		wp_die( esc_html__( 'Your role cannot change the structure.', 'ministry-content' ) );
 	}
 	$org = array();
 	$raw = isset( $_POST['org'] ) && is_array( $_POST['org'] ) ? wp_unslash( $_POST['org'] ) : array();
@@ -875,8 +890,8 @@ function ministry_desk_phone_list() {
  * Save one parastatal or agency.
  */
 function ministry_desk_save_entity() {
-	if ( ! ministry_desk_can_publish() ) {
-		wp_die( esc_html__( 'Entity details are checked by the Communications Director.', 'ministry-content' ) );
+	if ( ! ministry_desk_can( 'agencies' ) ) {
+		wp_die( esc_html__( 'Your role cannot edit agencies.', 'ministry-content' ) );
 	}
 	$settings = ministry_settings();
 	$entities = isset( $settings['entities'] ) && is_array( $settings['entities'] ) ? $settings['entities'] : array();
@@ -974,8 +989,8 @@ function ministry_desk_save_opportunity() {
  * Website facts used across the public site.
  */
 function ministry_desk_save_facts() {
-	if ( ! ministry_desk_can_publish() ) {
-		wp_die( esc_html__( 'Website facts are edited by the Communications Director.', 'ministry-content' ) );
+	if ( ! ministry_desk_can( 'facts' ) ) {
+		wp_die( esc_html__( 'Your role cannot edit website facts.', 'ministry-content' ) );
 	}
 	$stats = array();
 	$rows  = isset( $_POST['stats'] ) ? wp_unslash( $_POST['stats'] ) : array();
@@ -1100,32 +1115,93 @@ function ministry_desk_save_enquiry() {
  * Create a staff user.
  */
 function ministry_desk_save_user() {
-	if ( ! current_user_can( 'create_users' ) ) {
-		wp_die( esc_html__( 'Only an administrator can add users.', 'ministry-content' ) );
+	if ( ! ministry_desk_can( 'users' ) ) {
+		wp_die( esc_html__( 'Only an administrator can manage users.', 'ministry-content' ) );
 	}
 	$email = sanitize_email( isset( $_POST['email'] ) ? wp_unslash( $_POST['email'] ) : '' );
 	$name  = sanitize_text_field( isset( $_POST['name'] ) ? wp_unslash( $_POST['name'] ) : '' );
 	$role  = sanitize_key( isset( $_POST['role'] ) ? wp_unslash( $_POST['role'] ) : 'author' );
-	$roles = array( 'author', 'editor', 'administrator', 'mom_translator' );
+	$roles = array_keys( ministry_desk_role_options() );
+	$id    = isset( $_POST['user_id'] ) ? absint( $_POST['user_id'] ) : 0;
 	if ( ! in_array( $role, $roles, true ) || ! is_email( $email ) ) {
 		return;
 	}
-	$user_id = email_exists( $email );
-	if ( ! $user_id ) {
-		$user_id = wp_insert_user(
+	if ( $id ) {
+		$existing = get_userdata( $id );
+		if ( ! $existing ) {
+			return;
+		}
+		if ( 'administrator' === ministry_desk_user_role( $existing ) && 'administrator' !== $role ) {
+			$admins = get_users( array( 'role' => 'administrator', 'fields' => 'ids' ) );
+			if ( count( $admins ) < 2 ) {
+				wp_die( esc_html__( 'Keep at least one administrator.', 'ministry-content' ) );
+			}
+		}
+		$other = email_exists( $email );
+		if ( $other && (int) $other !== $id ) {
+			return;
+		}
+		wp_update_user(
 			array(
-				'user_login'   => sanitize_user( current( explode( '@', $email ) ), true ),
+				'ID'           => $id,
 				'user_email'   => $email,
-				'display_name' => $name ? $name : $email,
+				'display_name' => $name ? $name : $existing->display_name,
 				'role'         => $role,
-				'user_pass'    => wp_generate_password( 20 ),
 			)
 		);
-		if ( ! is_wp_error( $user_id ) ) {
+		$user_id = $id;
+		ministry_desk_log( 'updated a user' );
+	} else {
+		$user_id = email_exists( $email );
+		if ( ! $user_id ) {
+			$login   = sanitize_user( current( explode( '@', $email ) ), true );
+			$base    = $login ? $login : 'staff';
+			$try     = $base;
+			$n       = 1;
+			while ( username_exists( $try ) ) {
+				$try = $base . $n;
+				++$n;
+			}
+			$user_id = wp_insert_user(
+				array(
+					'user_login'   => $try,
+					'user_email'   => $email,
+					'display_name' => $name ? $name : $email,
+					'role'         => $role,
+					'user_pass'    => wp_generate_password( 20 ),
+				)
+			);
+			if ( is_wp_error( $user_id ) ) {
+				return;
+			}
 			wp_new_user_notification( (int) $user_id, null, 'user' );
+		} else {
+			wp_update_user(
+				array(
+					'ID'           => (int) $user_id,
+					'display_name' => $name ? $name : get_userdata( (int) $user_id )->display_name,
+					'role'         => $role,
+				)
+			);
+		}
+		ministry_desk_log( 'added a user' );
+	}
+	$user_id = (int) $user_id;
+	if ( 'mom_custom' === $role ) {
+		ministry_desk_store_custom_caps( $user_id, ministry_desk_posted_caps() );
+	} else {
+		delete_user_meta( $user_id, 'mom_desk_caps' );
+		$user = new WP_User( $user_id );
+		if ( 'author' === $role || 'mom_translator' === $role ) {
+			$user->remove_cap( 'publish_posts' );
+		}
+		if ( 'mom_translator' === $role ) {
+			$user->remove_cap( 'upload_files' );
+		}
+		if ( 'author' === $role || 'editor' === $role ) {
+			$user->add_cap( 'upload_files' );
 		}
 	}
-	ministry_desk_log( 'added a user' );
 }
 
 /**

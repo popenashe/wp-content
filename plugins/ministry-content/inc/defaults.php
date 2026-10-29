@@ -64,13 +64,8 @@ function ministry_default_settings() {
 		'logoId'             => 0,
 		'navItems'           => array(
 			array( 'label' => 'Home', 'href' => '/', 'children' => array() ),
-			array(
-				'label'    => 'About the ministry',
-				'href'     => '/about',
-				'children' => array(
-					array( 'label' => 'Departments', 'href' => '/departments' ),
-				),
-			),
+			array( 'label' => 'About the ministry', 'href' => '/about', 'children' => array() ),
+			array( 'label' => 'Departments', 'href' => '/departments', 'children' => array() ),
 			array( 'label' => 'Offices', 'href' => '/offices', 'children' => array() ),
 			array( 'label' => 'Services', 'href' => '/services', 'children' => array() ),
 			array( 'label' => 'Invest', 'href' => '/invest', 'children' => array() ),
@@ -460,20 +455,20 @@ function ministry_merge_settings( $stored ) {
 	if ( isset( $merged['pages']['about']['eyebrow'] ) && 0 === strcasecmp( trim( (string) $merged['pages']['about']['eyebrow'] ), 'About us' ) ) {
 		$merged['pages']['about']['eyebrow'] = $base['pages']['about']['eyebrow'];
 	}
-	$merged['navItems'] = ministry_nav_nest_departments( isset( $merged['navItems'] ) && is_array( $merged['navItems'] ) ? $merged['navItems'] : $base['navItems'] );
+	$merged['navItems'] = ministry_nav_normalize( isset( $merged['navItems'] ) && is_array( $merged['navItems'] ) ? $merged['navItems'] : $base['navItems'] );
 	return $merged;
 }
 
 /**
- * Move a top-level Departments item under About, and rename About Us.
+ * Keep Departments as a top-level item, not a submenu under About.
  *
  * @param array<int, mixed> $items Nav rows.
  * @return array<int, mixed>
  */
-function ministry_nav_nest_departments( $items ) {
-	$dept_i  = null;
-	$about_i = null;
-	$dept    = null;
+function ministry_nav_normalize( $items ) {
+	$about_i       = null;
+	$has_top_dept  = false;
+	$dept_from_sub = null;
 	foreach ( $items as $i => $item ) {
 		if ( ! is_array( $item ) || empty( $item['label'] ) ) {
 			continue;
@@ -482,36 +477,44 @@ function ministry_nav_nest_departments( $items ) {
 		$href  = isset( $item['href'] ) ? untrailingslashit( (string) $item['href'] ) : '';
 		$path  = (string) wp_parse_url( $href, PHP_URL_PATH );
 		$path  = untrailingslashit( $path ? $path : $href );
-		if ( 'departments' === $label || '/departments' === $path ) {
-			$dept_i = $i;
-			$dept   = $item;
-		}
 		if ( in_array( $label, array( 'about us', 'about the ministry' ), true ) || '/about' === $path ) {
 			$about_i = $i;
+		}
+		if ( 'departments' === $label || '/departments' === $path ) {
+			$has_top_dept = true;
 		}
 	}
 	if ( null !== $about_i && isset( $items[ $about_i ] ) && is_array( $items[ $about_i ] ) ) {
 		if ( 0 === strcasecmp( trim( (string) $items[ $about_i ]['label'] ), 'About Us' ) ) {
 			$items[ $about_i ]['label'] = 'About the ministry';
 		}
-		if ( ! isset( $items[ $about_i ]['children'] ) || ! is_array( $items[ $about_i ]['children'] ) ) {
-			$items[ $about_i ]['children'] = array();
-		}
-		if ( null !== $dept_i && null !== $dept && $dept_i !== $about_i ) {
-			$has_dept = false;
-			foreach ( $items[ $about_i ]['children'] as $kid ) {
-				if ( is_array( $kid ) && isset( $kid['label'] ) && 0 === strcasecmp( (string) $kid['label'], 'Departments' ) ) {
-					$has_dept = true;
-					break;
-				}
+		$children = isset( $items[ $about_i ]['children'] ) && is_array( $items[ $about_i ]['children'] ) ? $items[ $about_i ]['children'] : array();
+		$kept     = array();
+		foreach ( $children as $kid ) {
+			if ( ! is_array( $kid ) || empty( $kid['label'] ) ) {
+				continue;
 			}
-			if ( ! $has_dept ) {
-				unset( $dept['children'] );
-				$items[ $about_i ]['children'][] = $dept;
+			$kid_label = strtolower( trim( (string) $kid['label'] ) );
+			$kid_href  = isset( $kid['href'] ) ? untrailingslashit( (string) $kid['href'] ) : '';
+			$kid_path  = (string) wp_parse_url( $kid_href, PHP_URL_PATH );
+			$kid_path  = untrailingslashit( $kid_path ? $kid_path : $kid_href );
+			if ( 'departments' === $kid_label || '/departments' === $kid_path ) {
+				$dept_from_sub = $kid;
+				continue;
 			}
-			unset( $items[ $dept_i ] );
-			$items = array_values( $items );
+			$kept[] = $kid;
 		}
+		$items[ $about_i ]['children'] = $kept;
 	}
-	return $items;
+	if ( ! $has_top_dept ) {
+		$dept = is_array( $dept_from_sub ) ? $dept_from_sub : array(
+			'label'    => 'Departments',
+			'href'     => '/departments',
+			'children' => array(),
+		);
+		$dept['children'] = array();
+		$insert_at        = null !== $about_i ? $about_i + 1 : count( $items );
+		array_splice( $items, $insert_at, 0, array( $dept ) );
+	}
+	return array_values( $items );
 }

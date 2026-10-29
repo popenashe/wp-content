@@ -420,7 +420,7 @@ function ministry_desk_screen_people() {
 		return;
 	}
 	$leaders = ministry_settings()['leaders'];
-	$save    = ministry_desk_can_publish() ? '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save order</button> ' : '';
+	$save    = ministry_desk_can( 'people' ) ? '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save order</button> ' : '';
 	ministry_desk_head( 'People & Structure', 'People', 'Portraits, titles, and biographies used across the site. Drag to change the order on The Ministry and the homepage.', $save . '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => 'person' ) ) ) . '">+ Add person</a>' );
 	ministry_desk_form_open( 'people-order' );
 	echo '<input type="hidden" name="order" value="' . esc_attr( implode( ',', array_keys( is_array( $leaders ) ? $leaders : array() ) ) ) . '">';
@@ -453,7 +453,7 @@ function ministry_desk_screen_org_list( $offices ) {
 	$title = $offices ? 'Offices' : 'Departments';
 	$view  = $offices ? 'office' : 'department';
 	$form  = $offices ? 'offices-order' : 'departments-order';
-	$save  = ministry_desk_can_publish() ? '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save order</button> ' : '';
+	$save  = ministry_desk_can( 'people' ) ? '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save order</button> ' : '';
 	$hint  = $offices ? 'Harare centres and provincial mining offices. Drag within each group to change the public Offices page.' : 'Head-office departments. Drag to change the public Departments page.';
 	ministry_desk_head( 'People & Structure / ' . $title, $title, $hint, $save . '<a class="mom-btn mom-btn-primary" href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => $view ) ) ) . '">+ Add</a>' );
 	ministry_desk_form_open( $form );
@@ -953,14 +953,15 @@ function ministry_desk_screen_enquiries() {
  * Website facts.
  */
 function ministry_desk_screen_facts() {
-	if ( ! ministry_desk_can_publish() ) {
+	if ( ! ministry_desk_can( 'facts' ) ) {
 		echo '<div class="mom-note mom-note-gold"><p>Website facts are edited by the Communications Director and administrators. You can view this screen.</p></div>';
 	}
 	$settings = ministry_settings();
 	$meta     = ministry_desk_meta();
 	$stats    = isset( $settings['homeStats'] ) && is_array( $settings['homeStats'] ) ? $settings['homeStats'] : array();
 	$social   = isset( $settings['socialLinks'] ) && is_array( $settings['socialLinks'] ) ? $settings['socialLinks'] : array();
-	ministry_desk_head( 'Website Facts & Settings', 'Website Facts & Settings', 'Facts entered once here are used everywhere they appear on the site.', '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save settings</button>' );
+	$save = ministry_desk_can( 'facts' ) ? '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save settings</button>' : '';
+	ministry_desk_head( 'Website Facts & Settings', 'Website Facts & Settings', 'Facts entered once here are used everywhere they appear on the site.', $save );
 	ministry_desk_form_open( 'facts' );
 	echo '<div class="mom-split"><div class="mom-main-col">';
 	echo '<section class="mom-card" id="facts"><h2>Mining sector figures (Home page)</h2>';
@@ -1053,7 +1054,7 @@ function ministry_desk_screen_facts() {
 	echo '</section></div>';
 	echo '<div class="mom-side-col"><section class="mom-side-card"><h2>Where these appear</h2><p>Figures: Home. Phone and email: header, footer, Contact. Hours: Offices, Contact. Assistant: every public page.</p></section>';
 	echo '<section class="mom-side-card"><h2>Who can edit</h2><p>Administrators and the Communications Director. Every change is logged with name and time.</p>';
-	if ( current_user_can( 'manage_options' ) ) {
+	if ( ministry_desk_can( 'users' ) ) {
 		echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=ministry-settings&classic=1' ) ) . '">More settings</a> — page intros and menus.</p>';
 	}
 	echo '</section><section class="mom-side-card"><h2>Ministry identity</h2><p>' . esc_html( (string) $settings['ministryName'] ) . '</p>';
@@ -1103,44 +1104,53 @@ function ministry_desk_screen_page() {
  * Users, the permission matrix, and the activity log.
  */
 function ministry_desk_screen_users() {
-	if ( ! current_user_can( 'manage_options' ) ) {
+	if ( ! ministry_desk_can( 'users' ) ) {
 		wp_die( esc_html__( 'Only an administrator can open Users & Roles.', 'ministry-content' ) );
 	}
-	$users = get_users( array( 'number' => 50 ) );
-	ministry_desk_head( 'Users & Roles', 'Users & Roles', 'Four roles keep publishing safe: staff write, the Communications Director approves.', '<a class="mom-btn mom-btn-primary" href="#add-user">+ Add user</a>' );
-	echo '<div class="mom-split"><div><div class="mom-table-card"><table class="mom-table"><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Last login</th></tr></thead><tbody>';
+	$edit_id = isset( $_GET['user'] ) ? absint( $_GET['user'] ) : 0;
+	$edit    = $edit_id ? get_userdata( $edit_id ) : null;
+	$users   = get_users( array( 'number' => 80 ) );
+	ministry_desk_head( 'Users & Roles', 'Users & Roles', 'Preset roles follow the table. Custom lets you tick permissions for one person.', '<a class="mom-btn mom-btn-primary" href="#add-user">+ Add user</a>' );
+	echo '<div class="mom-split"><div><div class="mom-table-card"><table class="mom-table"><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Last login</th><th></th></tr></thead><tbody>';
 	foreach ( $users as $user ) {
 		$last = (int) get_user_meta( $user->ID, 'last_login', true );
 		echo '<tr><td><strong>' . esc_html( $user->display_name ) . '</strong></td><td>';
 		ministry_desk_badge( ministry_desk_role_label( $user ), 'blue' );
-		echo '</td><td>' . esc_html( $user->user_email ) . '</td><td>' . esc_html( $last ? ministry_desk_date( gmdate( 'Y-m-d H:i:s', $last ) ) : '—' ) . '</td></tr>';
+		echo '</td><td>' . esc_html( $user->user_email ) . '</td><td>' . esc_html( $last ? ministry_desk_date( gmdate( 'Y-m-d H:i:s', $last ) ) : '—' ) . '</td>';
+		echo '<td><a href="' . esc_url( ministry_desk_url( 'mom-users', array( 'user' => $user->ID ) ) ) . '#add-user">Edit</a></td></tr>';
 	}
 	echo '</tbody></table></div>';
-	echo '<section class="mom-card" id="add-user"><h2>Add user</h2>';
+	$role    = $edit ? ministry_desk_user_role( $edit ) : 'author';
+	$checked = $edit ? ministry_desk_user_caps( $edit ) : ministry_desk_role_preset( 'author' );
+	echo '<section class="mom-card" id="add-user"><h2>' . ( $edit ? 'Edit user' : 'Add user' ) . '</h2>';
 	ministry_desk_form_open( 'user' );
-	ministry_desk_field( 'Name', 'name', '' );
-	ministry_desk_field( 'Work email', 'email', '', array( 'type' => 'email', 'required' => true, 'hint' => 'They receive a link to set a password.' ) );
-	ministry_desk_field( 'Role', 'role', 'author', array( 'type' => 'select', 'options' => array( 'author' => 'Content Officer', 'mom_translator' => 'Translator (Shona / Ndebele)', 'editor' => 'Communications Director', 'administrator' => 'Administrator' ) ) );
-	echo '<button class="mom-btn mom-btn-primary">Add user</button></form></section>';
+	if ( $edit ) {
+		echo '<input type="hidden" name="user_id" value="' . esc_attr( (string) $edit->ID ) . '">';
+		echo '<p class="mom-hint"><a href="' . esc_url( ministry_desk_url( 'mom-users' ) ) . '#add-user">Cancel and add someone new</a></p>';
+	}
+	ministry_desk_field( 'Name', 'name', $edit ? $edit->display_name : '' );
+	ministry_desk_field( 'Work email', 'email', $edit ? $edit->user_email : '', array( 'type' => 'email', 'required' => true, 'hint' => $edit ? 'Saving keeps this account and applies the role below.' : 'They receive a link to set a password.' ) );
+	ministry_desk_field( 'Role', 'role', $role, array( 'type' => 'select', 'options' => ministry_desk_role_options() ) );
+	echo '<div class="mom-perm-box" data-custom-caps' . ( 'mom_custom' === $role ? '' : ' hidden' ) . '><h3>Custom permissions</h3><p class="mom-hint">Tick what this person may do. “Add users, plugins, themes” stays Administrator-only.</p><div class="mom-perm-grid">';
+	foreach ( ministry_desk_cap_catalog() as $key => $row ) {
+		if ( ! empty( $row['admin_only'] ) ) {
+			continue;
+		}
+		echo '<label class="mom-perm"><input type="checkbox" name="caps[]" value="' . esc_attr( $key ) . '" ' . checked( in_array( $key, $checked, true ), true, false ) . '> ' . esc_html( $row['label'] ) . '</label>';
+	}
+	echo '</div></div>';
+	echo '<button class="mom-btn mom-btn-primary">' . ( $edit ? 'Save user' : 'Add user' ) . '</button></form></section>';
+	$roles = array( 'author', 'mom_translator', 'editor', 'administrator' );
 	echo '<section class="mom-card"><h2>What each role can do</h2><div class="mom-table-card"><table class="mom-table"><thead><tr><th>Permission</th><th>Content Officer</th><th>Translator</th><th>Comms Director</th><th>Administrator</th></tr></thead><tbody>';
-	$rows = array(
-		array( 'Write and edit drafts', 1, 0, 1, 1 ),
-		array( 'Upload documents and photos', 1, 0, 1, 1 ),
-		array( 'Translate', 0, 1, 1, 1 ),
-		array( 'Publish news and notices', 0, 0, 1, 1 ),
-		array( 'Change notice numbers', 0, 0, 1, 1 ),
-		array( 'Edit leadership and structure', 0, 0, 1, 1 ),
-		array( 'Website facts and settings', 0, 0, 1, 1 ),
-		array( 'Add users, plugins, themes', 0, 0, 0, 1 ),
-	);
-	foreach ( $rows as $row ) {
-		echo '<tr><td>' . esc_html( $row[0] ) . '</td>';
-		for ( $i = 1; $i <= 4; $i++ ) {
-			echo '<td>' . ( $row[ $i ] ? '<span class="mom-ok">✓</span>' : '—' ) . '</td>';
+	foreach ( ministry_desk_cap_catalog() as $key => $row ) {
+		echo '<tr><td>' . esc_html( $row['label'] ) . '</td>';
+		foreach ( $roles as $role_key ) {
+			$yes = in_array( $key, ministry_desk_role_preset( $role_key ), true );
+			echo '<td>' . ( $yes ? '<span class="mom-ok">✓</span>' : '—' ) . '</td>';
 		}
 		echo '</tr>';
 	}
-	echo '</tbody></table></div></section></div><div class="mom-side-col"><section class="mom-side-card"><h2>Security</h2><ul class="mom-check"><li><span class="mom-ok">✓</span> Sign-in asks for a work email and a password</li><li><span class="mom-ok">✓</span> Wordfence handles firewall, login lockout, and optional two-factor</li><li><span class="mom-ok">✓</span> Accounts use ministry email addresses</li><li><span class="mom-ok">✓</span> Sessions end when the browser is closed</li><li><span class="mom-ok">✓</span> Leavers are disabled, never deleted — their work stays attributed</li></ul></section>';
+	echo '</tbody></table></div><p class="mom-hint">Custom is set on the person, not as a shared role. Changing a preset role takes effect the next time they open a desk screen.</p></section></div><div class="mom-side-col"><section class="mom-side-card"><h2>Security</h2><ul class="mom-check"><li><span class="mom-ok">✓</span> Sign-in asks for a work email and a password</li><li><span class="mom-ok">✓</span> Wordfence handles firewall, login lockout, and optional two-factor</li><li><span class="mom-ok">✓</span> Accounts use ministry email addresses</li><li><span class="mom-ok">✓</span> Sessions end when the browser is closed</li><li><span class="mom-ok">✓</span> Leavers are disabled, never deleted — their work stays attributed</li></ul></section>';
 	echo '<section class="mom-side-card"><h2>Activity log</h2>';
 	$log = array_reverse( (array) ministry_desk_meta()['log'] );
 	if ( ! $log ) {

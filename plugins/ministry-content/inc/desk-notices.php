@@ -265,11 +265,14 @@ function ministry_desk_sidebar() {
 		),
 		array( 'page' => 'mom-pages', 'label' => 'Pages', 'icon' => 'pages' ),
 	);
-	if ( current_user_can( 'manage_options' ) ) {
+	if ( ministry_desk_can( 'users' ) ) {
 		$items[] = array( 'page' => 'mom-users', 'label' => 'Users & Roles', 'icon' => 'lock' );
 	}
 	echo '<aside class="mom-side"><nav class="mom-nav" aria-label="Staff desk">';
 	foreach ( $items as $item ) {
+		if ( ! ministry_desk_can_page( $item['page'] ) ) {
+			continue;
+		}
 		$on = $page === $item['page'];
 		$url = ministry_desk_url( $item['page'] );
 		if ( empty( $item['children'] ) ) {
@@ -293,8 +296,8 @@ function ministry_desk_sidebar() {
 		echo '</div></details>';
 	}
 	echo '</nav><p class="mom-side-note">Hidden for staff: Appearance, Plugins, Tools, Comments. Users &amp; Roles: Administrators only.';
-	if ( current_user_can( 'manage_options' ) ) {
-		echo '<br><a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Plugins</a> · <a href="' . esc_url( admin_url( 'themes.php' ) ) . '">Appearance</a> · <a href="' . esc_url( admin_url( 'tools.php' ) ) . '">Tools</a>';
+	if ( ministry_desk_can( 'users' ) ) {
+		echo '<br><a href="' . esc_url( admin_url( 'admin.php?page=Wordfence' ) ) . '">Wordfence</a> · <a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Plugins</a> · <a href="' . esc_url( admin_url( 'themes.php' ) ) . '">Appearance</a> · <a href="' . esc_url( admin_url( 'tools.php' ) ) . '">Tools</a>';
 	}
 	echo '</p></aside>';
 }
@@ -315,27 +318,33 @@ function ministry_desk_topbar() {
 	echo '<button type="button" class="mom-burger" aria-label="Menu">' . ministry_desk_icon( 'grid' ) . '</button>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo '<a class="mom-brand" href="' . esc_url( ministry_desk_url( 'mom-desk' ) ) . '"><img src="' . esc_url( $logo ) . '" alt=""><span class="mom-brand-long">Ministry of Mines and Mining Development</span><span class="mom-brand-short">MMMD website</span></a>';
 	echo '<a href="' . esc_url( home_url( '/' ) ) . '" target="_blank" rel="noopener">' . ministry_desk_icon( 'eye' ) . ' Visit site</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-	echo '<details class="mom-new"><summary>' . ministry_desk_icon( 'plus' ) . ' New</summary><div class="mom-new-menu">'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	$news = array(
-		'Public notice' => ministry_desk_url( 'mom-notices', array( 'view' => 'edit', 'kind' => 'notice' ) ),
-		'News item'     => ministry_desk_url( 'mom-notices', array( 'view' => 'news' ) ),
-		'Document'      => ministry_desk_url( 'mom-documents', array( 'add' => '1' ) ),
-		'Event'         => ministry_desk_url( 'mom-events', array( 'view' => 'edit' ) ),
-		'Photo album'   => ministry_desk_url( 'mom-albums', array( 'view' => 'edit' ) ),
-		'Person'        => ministry_desk_url( 'mom-people', array( 'view' => 'person' ) ),
-		'FAQ'           => ministry_desk_url( 'mom-services', array( 'view' => 'faqs' ) ),
+		'Public notice' => array( 'notices', ministry_desk_url( 'mom-notices', array( 'view' => 'edit', 'kind' => 'notice' ) ) ),
+		'News item'     => array( 'notices', ministry_desk_url( 'mom-notices', array( 'view' => 'news' ) ) ),
+		'Document'      => array( 'documents', ministry_desk_url( 'mom-documents', array( 'add' => '1' ) ) ),
+		'Event'         => array( 'events', ministry_desk_url( 'mom-events', array( 'view' => 'edit' ) ) ),
+		'Photo album'   => array( 'albums', ministry_desk_url( 'mom-albums', array( 'view' => 'edit' ) ) ),
+		'Person'        => array( 'people', ministry_desk_url( 'mom-people', array( 'view' => 'person' ) ) ),
+		'FAQ'           => array( 'services', ministry_desk_url( 'mom-services', array( 'view' => 'faqs' ) ) ),
 	);
-	foreach ( $news as $label => $url ) {
-		echo '<a href="' . esc_url( $url ) . '">' . esc_html( $label ) . '</a>';
+	$new_links = '';
+	foreach ( $news as $label => $row ) {
+		if ( ! ministry_desk_can( $row[0] ) ) {
+			continue;
+		}
+		$new_links .= '<a href="' . esc_url( $row[1] ) . '">' . esc_html( $label ) . '</a>';
 	}
-	echo '</div></details></div><div class="mom-top-meta">';
+	if ( $new_links ) {
+		echo '<details class="mom-new"><summary>' . ministry_desk_icon( 'plus' ) . ' New</summary><div class="mom-new-menu">' . $new_links . '</div></details>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	}
+	echo '</div><div class="mom-top-meta">';
 	echo '<details class="mom-lang"><summary>Editing in: <strong>' . esc_html( ministry_desk_lang_label() ) . '</strong></summary><div class="mom-lang-menu">';
 	foreach ( array( 'en' => 'English', 'sn' => 'ChiShona', 'nd' => 'Ndebele' ) as $code => $label ) {
 		echo '<a class="' . ( $lang === $code ? 'is-on' : '' ) . '" href="' . esc_url( add_query_arg( 'desk_lang', $code ) ) . '">' . esc_html( $label ) . '</a>';
 	}
 	echo '</div></details>';
 	echo '<a class="mom-icon-btn" href="' . esc_url( ministry_desk_url( 'mom-desk' ) . '#waiting' ) . '" aria-label="Waiting for approval">' . ministry_desk_icon( 'bell' ) . ( $pending ? '<span class="mom-count">' . esc_html( (string) $pending ) . '</span>' : '' ) . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-	echo '<a class="mom-who" href="' . esc_url( current_user_can( 'manage_options' ) ? ministry_desk_url( 'mom-users' ) : admin_url( 'profile.php' ) ) . '"><span class="mom-avatar">' . esc_html( ministry_desk_initials( $user ) ) . '</span><span>' . esc_html( $user->display_name ) . '<small>' . esc_html( ministry_desk_role_label( $user ) ) . '</small></span></a>';
+	echo '<a class="mom-who" href="' . esc_url( ministry_desk_can( 'users' ) ? ministry_desk_url( 'mom-users' ) : admin_url( 'profile.php' ) ) . '"><span class="mom-avatar">' . esc_html( ministry_desk_initials( $user ) ) . '</span><span>' . esc_html( $user->display_name ) . '<small>' . esc_html( ministry_desk_role_label( $user ) ) . '</small></span></a>';
 	echo '</div></header>';
 }
 
@@ -500,7 +509,7 @@ function ministry_desk_health_card() {
 		echo '<a class="' . ( $row[3] ? 'is-bad' : '' ) . '" href="' . esc_url( $row[2] ) . '"><span><b>' . esc_html( (string) $row[0] ) . '</b> ' . esc_html( $row[1] ) . '</span><span>›</span></a>';
 	}
 	echo '</div><p class="mom-hint">Checked from the live records. Click a line to see the items.</p></section>';
-	if ( current_user_can( 'manage_options' ) ) {
+	if ( ministry_desk_can( 'users' ) ) {
 		ministry_desk_import_card();
 	}
 }
@@ -625,7 +634,7 @@ function ministry_desk_screen_notice() {
 	echo '<input type="hidden" name="post_id" value="' . esc_attr( (string) $id ) . '">';
 	echo '<div class="mom-split"><div class="mom-main-col">';
 	echo '<section class="mom-card"><h2>Notice details</h2><div class="mom-grid-3">';
-	ministry_desk_field( 'Notice number', 'notice_number', $number, array( 'readonly' => ! ministry_desk_can_publish(), 'badges' => array( 'AUTO', 'Director only' ), 'hint' => 'Next number in sequence. Only a Director can change it.' ) );
+	ministry_desk_field( 'Notice number', 'notice_number', $number, array( 'readonly' => ! ministry_desk_can( 'notice_numbers' ), 'badges' => array( 'AUTO', 'Director only' ), 'hint' => 'Next number in sequence. Only a role that can change notice numbers may edit this.' ) );
 	ministry_desk_field( 'Type', 'kind_label', 'Public notice', array( 'readonly' => true ) );
 	ministry_desk_field( 'Date issued', 'issued', $post ? (string) get_post_meta( $id, '_mom_issued', true ) : wp_date( 'Y-m-d' ), array( 'type' => 'date', 'required' => true ) );
 	echo '</div><div class="mom-grid-3">';
