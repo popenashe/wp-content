@@ -118,10 +118,32 @@ function ministry_bind_layout() {
 	if ( is_array( $stored ) && ! empty( $stored['top'] ) ) {
 		return $stored;
 	}
+	$from_file = ministry_bind_layout_from_file();
+	if ( ! empty( $from_file['top'] ) ) {
+		update_option( 'mom_layout', $from_file, false );
+	}
+	return $from_file;
+}
+
+/**
+ * Header/footer chrome from the homepage design file.
+ *
+ * @return array{head: string, top: string, end: string}
+ */
+function ministry_bind_layout_from_file() {
+	if ( ! function_exists( 'ministry_site_document' ) ) {
+		return array(
+			'head' => '',
+			'top'  => '',
+			'end'  => '',
+		);
+	}
+	$doc   = ministry_site_document( 'index' );
+	$parts = preg_split( '#<main id="main"[^>]*>.*</main>#s', (string) $doc['body'] );
 	return array(
-		'head' => '',
-		'top'  => '',
-		'end'  => '',
+		'head' => (string) $doc['head'],
+		'top'  => isset( $parts[0] ) ? (string) $parts[0] : '',
+		'end'  => isset( $parts[1] ) ? (string) $parts[1] : '',
 	);
 }
 
@@ -131,17 +153,10 @@ function ministry_bind_layout() {
  * @return array{head: string, top: string, end: string}
  */
 function ministry_bind_capture_layout() {
-	if ( ! function_exists( 'ministry_site_document' ) ) {
-		return ministry_bind_layout();
+	$layout = ministry_bind_layout_from_file();
+	if ( ! empty( $layout['top'] ) ) {
+		update_option( 'mom_layout', $layout, false );
 	}
-	$doc   = ministry_site_document( 'index' );
-	$parts = preg_split( '#<main id="main"[^>]*>.*</main>#s', (string) $doc['body'] );
-	$layout = array(
-		'head' => (string) $doc['head'],
-		'top'  => isset( $parts[0] ) ? (string) $parts[0] : '',
-		'end'  => isset( $parts[1] ) ? (string) $parts[1] : '',
-	);
-	update_option( 'mom_layout', $layout, false );
 	return $layout;
 }
 
@@ -155,8 +170,28 @@ function ministry_bind_main( $name ) {
 	if ( $post && 'publish' !== $post->post_status ) {
 		return '<div class="wrap"><p>' . esc_html__( 'This page has been removed.', 'ministry-content' ) . '</p></div>';
 	}
-	if ( $post ) {
-		return wp_kses_post( (string) $post->post_content );
+	$content = $post ? (string) $post->post_content : '';
+	if ( '' !== trim( wp_strip_all_tags( $content ) ) ) {
+		return wp_kses_post( $content );
+	}
+	return ministry_bind_main_from_file( $name );
+}
+
+/**
+ * Inner HTML of #main from a design file, used when WordPress has no copy yet.
+ *
+ * @param string $name Design file name.
+ */
+function ministry_bind_main_from_file( $name ) {
+	if ( function_exists( 'ministry_desk_design_main_html' ) ) {
+		return ministry_desk_design_main_html( $name );
+	}
+	if ( ! function_exists( 'ministry_site_document' ) ) {
+		return '';
+	}
+	$doc = ministry_site_document( $name );
+	if ( preg_match( '#<main id="main"[^>]*>(.*)</main>#s', (string) $doc['body'], $match ) ) {
+		return trim( $match[1] );
 	}
 	return '';
 }
