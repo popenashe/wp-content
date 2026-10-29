@@ -1404,8 +1404,19 @@ function ministry_front_office_card_map( $card, $posts ) {
 		$town = trim( wp_strip_all_tags( $muted[1] ) );
 	}
 	$query = ministry_front_maps_query( $title, $address, $town );
-	$href  = ministry_front_maps_link( $query, $lat, $lng );
-	$inner = ministry_front_maps_preview_inner( $title, $query, $lat, $lng );
+	if ( $post ) {
+		$stamp = (string) get_post_meta( $post->ID, '_mom_geocode_query', true );
+		if ( $stamp !== ministry_maps_geocode_stamp( $query ) ) {
+			$lat = '';
+			$lng = '';
+		}
+	}
+	$href  = ministry_front_maps_link( $query );
+	$point = ministry_front_maps_point( $query, $lat, $lng );
+	$inner = ministry_front_maps_preview_inner( $title, $point );
+	if ( $post && $point && 16 === (int) $point[2] ) {
+		ministry_office_store_point( $post->ID, $query, $point );
+	}
 	ministry_front_maps_mark_needed();
 	$preview = '<a class="map-preview" href="' . esc_url( $href ) . '" target="_blank" rel="noopener" aria-label="' . esc_attr( sprintf( __( 'Open %s in Google Maps', 'ministry-content' ), $title ) ) . '">' . $inner . '</a>';
 	$card    = preg_replace( '#href="https://www\.openstreetmap\.org/search\?query=[^"]*"#', 'href="' . esc_url( $href ) . '"', $card );
@@ -1454,22 +1465,15 @@ function ministry_front_maps_query( $title, $address, $town ) {
 	if ( $town ) {
 		$parts[] = $town;
 	}
-	if ( $title ) {
-		$parts[] = $title;
-	}
 	$parts[] = 'Zimbabwe';
 	return implode( ', ', array_unique( array_filter( array_map( 'trim', $parts ) ) ) );
 }
 
 /**
- * @param string $query Search text.
- * @param string $lat   Latitude.
- * @param string $lng   Longitude.
+ * @param string $query Search text from the office address.
  */
-function ministry_front_maps_link( $query, $lat, $lng ) {
-	$coords = ministry_front_maps_coords( $lat, $lng );
-	$search = $coords ? $coords[0] . ',' . $coords[1] : $query;
-	return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( $search );
+function ministry_front_maps_link( $query ) {
+	return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( $query );
 }
 
 /**
@@ -1493,13 +1497,10 @@ function ministry_front_maps_coords( $lat, $lng ) {
 }
 
 /**
- * @param string $label Visible name on the pin.
- * @param string $query Search text.
- * @param string $lat   Latitude.
- * @param string $lng   Longitude.
+ * @param string                        $label Visible name on the pin.
+ * @param array{0: float, 1: float, 2: int}|null $point Map point.
  */
-function ministry_front_maps_preview_inner( $label, $query, $lat, $lng ) {
-	$point = ministry_front_maps_point( $query, $lat, $lng );
+function ministry_front_maps_preview_inner( $label, $point ) {
 	if ( $point ) {
 		return '<div class="map-ph has-map" data-map-thumb data-lat="' . esc_attr( sprintf( '%.6F', $point[0] ) ) . '" data-lng="' . esc_attr( sprintf( '%.6F', $point[1] ) ) . '" data-zoom="' . esc_attr( (string) $point[2] ) . '"><div class="map-thumb" role="presentation"></div><span class="map-attr">© OpenFreeMap</span>' . ( $label ? '<b>' . esc_html( $label ) . '</b>' : '' ) . '</div>';
 	}
@@ -1512,16 +1513,226 @@ function ministry_front_maps_preview_inner( $label, $query, $lat, $lng ) {
  * @param string $lng   Longitude.
  * @return array{0: float, 1: float, 2: int}|null
  */
-function ministry_front_maps_point( $query, $lat, $lng ) {
+function ministry_front_maps_point( $query, $lat = '', $lng = '' ) {
 	$coords = ministry_front_maps_coords( $lat, $lng );
 	if ( $coords ) {
-		return array( $coords[0], $coords[1], 15 );
+		return array( $coords[0], $coords[1], 16 );
+	}
+	$geo = ministry_maps_geocode( $query );
+	if ( $geo ) {
+		return array( $geo[0], $geo[1], 16 );
 	}
 	$guess = ministry_front_maps_guess_coords( $query );
 	if ( $guess ) {
 		return array( $guess[0], $guess[1], 13 );
 	}
 	return null;
+}
+
+/**
+ * Nominatim lookup for a street address. Cached.
+ *
+ * @param string $query Address search text.
+ * @return array{0: float, 1: float}|null
+ */
+function ministry_maps_geocode( $query ) {
+	$query = trim( preg_replace( '/\s+/', ' ', (string) $query ) );
+	if ( '' === $query ) {
+		return null;
+	}
+	$low = strtolower( $query );
+	if ( str_contains( $low, 'to be confirmed' ) || preg_match( '/\btbc\b/', $low ) ) {
+		return null;
+	}
+	$key    = 'mom_geocode_zw3_' . md5( strtolower( $query ) );
+	$cached = get_transient( $key );
+	if ( is_array( $cached ) && isset( $cached['lat'], $cached['lng'] ) ) {
+		return ministry_front_maps_coords( (string) $cached['lat'], (string) $cached['lng'] );
+	}
+	if ( 'none' === $cached ) {
+		return null;
+	}
+	foreach ( ministry_maps_geocode_candidates( $query ) as $try ) {
+		$coords = ministry_maps_geocode_request( $try );
+		if ( $coords && ministry_maps_near_town( $coords, $query ) ) {
+			set_transient(
+				$key,
+				array(
+					'lat' => $coords[0],
+					'lng' => $coords[1],
+				),
+				MONTH_IN_SECONDS
+			);
+			return $coords;
+		}
+	}
+	set_transient( $key, 'none', DAY_IN_SECONDS );
+	return null;
+}
+
+/**
+ * Expand abbreviations and split a typed address into Nominatim search attempts.
+ *
+ * @param string $query Address search text.
+ * @return string[]
+ */
+function ministry_maps_geocode_candidates( $query ) {
+	$norm = ministry_maps_normalize_address( $query );
+	$out  = array( $query );
+	if ( $norm !== $query ) {
+		$out[] = $norm;
+	}
+	$parts = array_values( array_filter( array_map( 'trim', explode( ',', $norm ) ) ) );
+	if ( count( $parts ) > 2 ) {
+		$out[] = implode( ', ', array_slice( $parts, 1 ) );
+	}
+	$tail = array_slice( $parts, -2 );
+	foreach ( $parts as $part ) {
+		if ( ! preg_match( '/\b(street|avenue|road|drive|close|lane|way|crescent)\b/i', $part ) ) {
+			continue;
+		}
+		$out[] = implode( ', ', array_merge( array( $part ), $tail ) );
+	}
+	$unique = array();
+	foreach ( $out as $item ) {
+		$item = trim( preg_replace( '/\s+/', ' ', $item ) );
+		if ( '' === $item ) {
+			continue;
+		}
+		$unique[ strtolower( $item ) ] = $item;
+	}
+	return array_slice( array_values( $unique ), 0, 4 );
+}
+
+/**
+ * @param string $query Address text.
+ */
+function ministry_maps_normalize_address( $query ) {
+	$query = str_replace( array( '&', '+' ), ',', $query );
+	$query = preg_replace( '/\b(cnr|corner of|corner)\b/i', ',', $query );
+	$repl  = array(
+		'/\bstreet\b/i'  => 'Street',
+		'/\bavenue\b/i'  => 'Avenue',
+		'/\broad\b/i'    => 'Road',
+		'/\bdrive\b/i'   => 'Drive',
+		'/\bst\.?\b/i'   => 'Street',
+		'/\bave\.?\b/i'  => 'Avenue',
+		'/\brd\.?\b/i'   => 'Road',
+		'/\bdr\.?\b/i'   => 'Drive',
+	);
+	foreach ( $repl as $pattern => $word ) {
+		$query = preg_replace( $pattern, $word, $query );
+	}
+	$query = preg_replace( '/\s*,\s*/', ', ', $query );
+	return trim( preg_replace( '/\s+/', ' ', $query ), " \t," );
+}
+
+/**
+ * @param string $query One Nominatim search string.
+ * @return array{0: float, 1: float}|null
+ */
+function ministry_maps_geocode_request( $query ) {
+	$url      = add_query_arg(
+		array(
+			'q'            => $query,
+			'format'       => 'jsonv2',
+			'limit'        => '1',
+			'countrycodes' => 'zw',
+		),
+		'https://nominatim.openstreetmap.org/search'
+	);
+	$response = wp_remote_get(
+		$url,
+		array(
+			'timeout' => 8,
+			'headers' => array(
+				'User-Agent' => 'MinistryOfMinesPortal/1.0 (https://ministryofmines.org; mmmd@mines.gov.zw)',
+				'Accept'     => 'application/json',
+			),
+		)
+	);
+	if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+		return null;
+	}
+	$body = json_decode( wp_remote_retrieve_body( $response ), true );
+	if ( ! is_array( $body ) || empty( $body[0]['lat'] ) || empty( $body[0]['lon'] ) ) {
+		return null;
+	}
+	$coords = ministry_front_maps_coords( (string) $body[0]['lat'], (string) $body[0]['lon'] );
+	if ( ! $coords ) {
+		return null;
+	}
+	if ( $coords[0] > -15.4 || $coords[0] < -22.6 || $coords[1] < 25.0 || $coords[1] > 33.6 ) {
+		return null;
+	}
+	return $coords;
+}
+
+/**
+ * Reject a pin that is far from the named town (same street names exist in several cities).
+ *
+ * @param array{0: float, 1: float} $coords Latitude, longitude.
+ * @param string                    $query  Full address query.
+ */
+function ministry_maps_near_town( $coords, $query ) {
+	$guess = ministry_front_maps_guess_coords( $query );
+	if ( ! $guess ) {
+		return true;
+	}
+	$dlat = $coords[0] - $guess[0];
+	$dlng = $coords[1] - $guess[1];
+	return ( ( $dlat * $dlat ) + ( $dlng * $dlng ) ) < 0.36;
+}
+
+/**
+ * Geocode an office from its saved address after desk save.
+ *
+ * @param int $id Office post ID.
+ */
+function ministry_office_geocode_save( $id ) {
+	$id = absint( $id );
+	if ( ! $id ) {
+		return;
+	}
+	$title   = get_the_title( $id );
+	$address = (string) get_post_meta( $id, '_mom_address', true );
+	$town    = (string) get_post_meta( $id, '_mom_town', true );
+	if ( '' === $town && '1' === (string) get_post_meta( $id, '_mom_centre', true ) ) {
+		$town = 'Harare';
+	}
+	$query = ministry_front_maps_query( $title, $address, $town );
+	$stamp = (string) get_post_meta( $id, '_mom_geocode_query', true );
+	$lat   = (string) get_post_meta( $id, '_mom_lat', true );
+	$lng   = (string) get_post_meta( $id, '_mom_lng', true );
+	if ( $stamp === ministry_maps_geocode_stamp( $query ) && ministry_front_maps_coords( $lat, $lng ) ) {
+		return;
+	}
+	$point = ministry_front_maps_point( $query );
+	if ( $point && 16 === (int) $point[2] ) {
+		ministry_office_store_point( $id, $query, $point );
+		return;
+	}
+	update_post_meta( $id, '_mom_geocode_query', ministry_maps_geocode_stamp( $query ) );
+	delete_post_meta( $id, '_mom_lat' );
+	delete_post_meta( $id, '_mom_lng' );
+}
+
+/**
+ * @param int                           $id    Office post ID.
+ * @param string                        $query Address search text.
+ * @param array{0: float, 1: float, 2: int} $point Map point.
+ */
+function ministry_office_store_point( $id, $query, $point ) {
+	update_post_meta( $id, '_mom_geocode_query', ministry_maps_geocode_stamp( $query ) );
+	update_post_meta( $id, '_mom_lat', sprintf( '%.6F', $point[0] ) );
+	update_post_meta( $id, '_mom_lng', sprintf( '%.6F', $point[1] ) );
+}
+
+/**
+ * @param string $query Address search text.
+ */
+function ministry_maps_geocode_stamp( $query ) {
+	return 'v3|' . $query;
 }
 
 /**

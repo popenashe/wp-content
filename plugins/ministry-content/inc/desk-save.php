@@ -806,8 +806,9 @@ function ministry_desk_save_department( $form ) {
 	update_post_meta( $id, '_mom_group', sanitize_text_field( isset( $_POST['group'] ) ? wp_unslash( $_POST['group'] ) : '' ) );
 	update_post_meta( $id, '_mom_profile', sanitize_textarea_field( isset( $_POST['profile'] ) ? wp_unslash( $_POST['profile'] ) : '' ) );
 	update_post_meta( $id, '_mom_minerals', ministry_desk_text_list( 'minerals' ) );
-	update_post_meta( $id, '_mom_lat', sanitize_text_field( isset( $_POST['lat'] ) ? wp_unslash( $_POST['lat'] ) : '' ) );
-	update_post_meta( $id, '_mom_lng', sanitize_text_field( isset( $_POST['lng'] ) ? wp_unslash( $_POST['lng'] ) : '' ) );
+	if ( 'office' === $form && function_exists( 'ministry_office_geocode_save' ) ) {
+		ministry_office_geocode_save( $id );
+	}
 	update_post_meta( $id, '_mom_head_title', sanitize_text_field( isset( $_POST['head_title'] ) ? wp_unslash( $_POST['head_title'] ) : '' ) );
 	$thumb = absint( isset( $_POST['thumbnail_id'] ) ? wp_unslash( $_POST['thumbnail_id'] ) : 0 );
 	if ( $thumb ) {

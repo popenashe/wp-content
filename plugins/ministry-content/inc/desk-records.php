@@ -694,12 +694,16 @@ function ministry_desk_screen_unit( $office ) {
 		ministry_desk_field( 'Province', 'province', $post ? (string) get_post_meta( $id, '_mom_province_name', true ) : '', array( 'required' => true ) );
 		ministry_desk_field( 'Town', 'town', $post ? (string) get_post_meta( $id, '_mom_town', true ) : ( $post ? (string) get_post_meta( $id, '_mom_location', true ) : '' ), array( 'required' => true ) );
 		echo '</div>';
-		ministry_desk_field( 'Street address', 'address', $post ? (string) get_post_meta( $id, '_mom_address', true ) : '', array( 'required' => true ) );
-		echo '<div class="mom-map" aria-hidden="true"><span class="mom-pin">📍</span></div>';
-		echo '<div class="mom-grid-2">';
-		ministry_desk_field( 'Latitude', 'lat', $post ? (string) get_post_meta( $id, '_mom_lat', true ) : '' );
-		ministry_desk_field( 'Longitude', 'lng', $post ? (string) get_post_meta( $id, '_mom_lng', true ) : '' );
-		echo '</div><div class="mom-note mom-note-gold"><p>Latitude and longitude pin the OpenFreeMap thumbnail on the Offices page. Leave them blank to use the town centre. Clicking the thumbnail still opens Google Maps.</p></div></section>';
+		ministry_desk_field(
+			'Street address',
+			'address',
+			$post ? (string) get_post_meta( $id, '_mom_address', true ) : '',
+			array(
+				'required' => true,
+				'hint'     => 'The Offices page map thumbnail and the Google Maps link both follow this address.',
+			)
+		);
+		echo '</section>';
 		echo '<section class="mom-card" data-repeater><h2>Contact</h2>';
 		$phones = $post ? get_post_meta( $id, '_mom_phones', true ) : array();
 		if ( ! is_array( $phones ) || ! $phones ) {
@@ -1029,7 +1033,7 @@ function ministry_desk_screen_facts() {
 	ministry_desk_field( 'Tenant', 'assistantTenant', isset( $settings['assistantTenant'] ) ? (string) $settings['assistantTenant'] : '', array( 'hint' => 'data-tenant on the embed, currently ministryofmines.' ) );
 	echo '</section>';
 	echo '<section class="mom-card" id="maps"><h2>Maps</h2>';
-	echo '<p class="mom-hint">Office cards show an OpenFreeMap preview. Clicking a card or Map link still opens Google Maps. Add latitude and longitude on an office to pin the building; otherwise the town is used.</p>';
+	echo '<p class="mom-hint">Office cards show an OpenFreeMap preview of the street address. Clicking the thumbnail opens that same address in Google Maps.</p>';
 	echo '</section>';
 	echo '<section class="mom-card" id="downloads"><h2>Downloads</h2>';
 	ministry_desk_field(
