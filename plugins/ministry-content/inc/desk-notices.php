@@ -275,13 +275,12 @@ function ministry_desk_sidebar() {
 		),
 		array(
 			'page' => 'mom-people',
-			'label' => 'Leadership',
+			'label' => 'Leadership and structure',
 			'icon' => 'people',
 			'children' => array(
 				array( 'label' => 'Leadership', 'args' => array() ),
 				array( 'label' => 'Departments', 'args' => array( 'view' => 'departments' ) ),
 				array( 'label' => 'Offices', 'args' => array( 'view' => 'offices' ) ),
-				array( 'label' => 'Homepage order', 'args' => array( 'view' => 'leadership' ) ),
 			),
 		),
 		array(

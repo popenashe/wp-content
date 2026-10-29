@@ -64,7 +64,12 @@ add_action(
 				. '.mom-assistant-launch,.mom-assistant-close{position:fixed;z-index:10000;border:0;background:#1B2A4E;color:#fff;font:600 14px/1.2 inherit;cursor:pointer;box-shadow:0 8px 24px rgba(27,42,78,.35)}'
 				. '.mom-assistant-launch:focus,.mom-assistant-close:focus{outline:2px solid #fff;outline-offset:3px}'
 				. '.mom-assistant-launch{right:20px;bottom:20px;border-radius:999px;padding:12px 16px}'
-				. '.mom-assistant-close{right:12px;bottom:604px;width:36px;height:36px;border-radius:999px}';
+				. '.mom-assistant-close{right:12px;bottom:604px;width:36px;height:36px;border-radius:999px}'
+				. '@media (max-width:640px){'
+				. '.mom-assistant-launch{right:12px;bottom:12px;padding:8px 12px;font-size:13px;min-height:44px}'
+				. '#knowbot-widget-root.is-open iframe{width:calc(100vw - 24px)!important;max-width:calc(100vw - 24px)!important;height:min(500px,calc(100vh - 110px))!important;max-height:calc(100vh - 110px)!important;right:12px!important;bottom:12px!important;border-radius:12px!important}'
+				. '.mom-assistant-close{right:20px;bottom:calc(12px + min(500px, 100vh - 110px) - 44px)}'
+				. '}';
 		}
 		echo '<style>' . $css . '</style>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	}

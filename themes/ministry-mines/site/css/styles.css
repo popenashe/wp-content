@@ -57,8 +57,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .masthead { background: #fff; border-bottom: 1px solid var(--line); }
 .masthead .wrap { display: flex; align-items: center; gap: 20px; padding-top: 16px; padding-bottom: 16px; }
 .brand { display: flex; align-items: center; gap: 22px; text-decoration: none; color: var(--ink); flex: 1; min-width: 0; }
-.logo-crop { display: block; overflow: hidden; aspect-ratio: 1305 / 840; flex: none; width: 200px; }
-.logo-crop img { width: 100%; height: auto; }
+.logo-crop { display: block; flex: none; width: 200px; }
+.logo-crop img { width: 100%; height: auto; display: block; }
 .brand strong { display: block; font-family: var(--serif); font-size: 2.08rem; color: var(--green); line-height: 1.2; }
 .brand span { font-size: 1.28rem; color: var(--muted); }
 .search { display: flex; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; width: 300px; }
@@ -240,7 +240,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .site-footer a { color: #fff; text-decoration: none; }
 .site-footer a:hover { text-decoration: underline; color: #fff; }
 .site-footer .brand-f { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 16px; }
-.site-footer .brand-f .logo-crop { width: 64px; background: #fff; border-radius: 50%; padding: 4px; aspect-ratio: 1; display: grid; place-items: center; }
+.site-footer .brand-f .logo-crop { width: 64px; background: #fff; border-radius: 50%; padding: 4px; aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; }
 .site-footer .brand-f strong { font-family: var(--serif); color: #fff; font-size: 1.05rem; display: block; line-height: 1.25; }
 .site-footer .brand-f em { color: var(--gold); font-size: .8rem; }
 .site-footer .contact-line { display: flex; gap: 8px; margin-bottom: 8px; }

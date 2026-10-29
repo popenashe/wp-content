@@ -797,6 +797,7 @@ function ministry_desk_save_people_order() {
 		return;
 	}
 	$order   = isset( $_POST['order'] ) ? sanitize_text_field( wp_unslash( $_POST['order'] ) ) : '';
+	$home    = isset( $_POST['home'] ) && is_array( $_POST['home'] ) ? wp_unslash( $_POST['home'] ) : array();
 	$indexes = array_filter(
 		array_map( 'intval', explode( ',', $order ) ),
 		function ( $index ) use ( $leaders ) {
@@ -806,12 +807,15 @@ function ministry_desk_save_people_order() {
 	$next = array();
 	$seen = array();
 	foreach ( $indexes as $index ) {
-		$next[]         = $leaders[ $index ];
+		$row            = $leaders[ $index ];
+		$row['home']    = empty( $home[ $index ] ) ? '0' : '1';
+		$next[]         = $row;
 		$seen[ $index ] = true;
 	}
 	foreach ( $leaders as $index => $row ) {
 		if ( ! isset( $seen[ $index ] ) ) {
-			$next[] = $row;
+			$row['home'] = empty( $home[ $index ] ) ? '0' : '1';
+			$next[]      = $row;
 		}
 	}
 	ministry_desk_patch_settings( array( 'leaders' => $next ) );

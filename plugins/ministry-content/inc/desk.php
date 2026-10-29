@@ -62,7 +62,7 @@ function ministry_desk_menus() {
 		'mom-notices'   => 'Notices & News',
 		'mom-documents' => 'Documents',
 		'mom-services'  => 'Services',
-		'mom-people'    => 'Leadership',
+		'mom-people'    => 'Leadership and structure',
 		'mom-albums'    => 'Photo albums',
 		'mom-events'    => 'Events',
 		'mom-agencies'  => 'Agencies & Investments',
@@ -823,10 +823,6 @@ function ministry_desk_router() {
 	}
 	if ( 'mom-people' === $page && 'person' === $view ) {
 		ministry_desk_screen_person();
-		return;
-	}
-	if ( 'mom-people' === $page && 'leadership' === $view ) {
-		ministry_desk_screen_leadership();
 		return;
 	}
 	if ( 'mom-people' === $page && 'department' === $view ) {

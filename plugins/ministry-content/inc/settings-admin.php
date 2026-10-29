@@ -77,7 +77,7 @@ function ministry_field_label( $key ) {
 		'shortName' => 'Short name',
 		'countryLine' => 'Country line',
 		'tagline' => 'Motto',
-		'logoId' => 'Coat of arms',
+		'logoId' => 'Logo',
 		'headOfficeName' => 'Head office name',
 		'headOfficeAddress' => 'Address',
 		'headOfficeEmail' => 'Email',

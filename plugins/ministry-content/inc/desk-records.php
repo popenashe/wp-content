@@ -645,6 +645,7 @@ function ministry_desk_screen_people() {
 		if ( ! empty( $leader['name'] ) ) {
 			$person_preview .= '#' . rawurlencode( sanitize_title( (string) $leader['name'] ) );
 		}
+		echo '<label class="mom-toggle"><input type="checkbox" name="home[' . esc_attr( (string) $index ) . ']" value="1" ' . checked( $on_home, true, false ) . '> Show on Home</label>';
 		echo '<span class="mom-row-links"><a href="' . esc_url( $person_preview ) . '" target="_blank" rel="noopener">Preview</a> · ';
 		ministry_desk_delete_link( 0, ministry_desk_url( 'mom-people' ), array( 'leader_index' => $index ) );
 		echo '</span></article>';
@@ -1313,7 +1314,7 @@ function ministry_desk_screen_facts() {
 	}
 	echo '</section><section class="mom-side-card"><h2>Ministry identity</h2><p>' . esc_html( (string) $settings['ministryName'] ) . '</p>';
 	$logo = ! empty( $settings['logoUrl'] ) ? $settings['logoUrl'] : get_template_directory_uri() . '/site/images/logo-full.png';
-	echo '<p>Coat of arms</p><img src="' . esc_url( $logo ) . '" alt="" style="width:72px"></section></div></div></form>';
+	echo '<p>Logo</p><img src="' . esc_url( $logo ) . '" alt="" style="width:72px"></section></div></div></form>';
 }
 
 /**
