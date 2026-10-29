@@ -172,6 +172,9 @@ function ministry_bind_main( $name ) {
 	if ( $post && 'publish' !== $post->post_status ) {
 		return '<div class="wrap"><p>' . esc_html__( 'This page has been removed.', 'ministry-content' ) . '</p></div>';
 	}
+	if ( str_starts_with( $name, 'news-' ) || str_starts_with( $name, 'department-' ) ) {
+		return ministry_bind_main_from_file( $name );
+	}
 	$content = $post ? (string) $post->post_content : '';
 	if ( '' !== trim( wp_strip_all_tags( $content ) ) ) {
 		return wp_kses_post( $content );

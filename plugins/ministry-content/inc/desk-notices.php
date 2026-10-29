@@ -75,16 +75,47 @@ function ministry_desk_field( $label, $name, $value, $args = array() ) {
 }
 
 /**
- * @param string $name  Textarea name.
- * @param string $value HTML or text.
+ * Visual body editor. Staff type plain text; the toolbar applies emphasis.
+ *
+ * @param string $name        Field name.
+ * @param string $value       Stored HTML or text.
+ * @param string $placeholder Empty-state hint.
  */
-function ministry_desk_editor( $name, $value ) {
-	echo '<div class="mom-editor"><div class="mom-editor-bar"><div class="mom-editor-tools">';
-	foreach ( array( 'strong' => 'B', 'em' => 'I', 'h2' => 'H2', 'h3' => 'H3', 'li' => 'List', 'link' => 'Link' ) as $token => $label ) {
-		echo '<button type="button" data-wrap="' . esc_attr( $token ) . '">' . esc_html( $label ) . '</button>';
-	}
-	echo '</div><span>Formatting limited to keep the site consistent</span></div>';
-	echo '<textarea name="' . esc_attr( $name ) . '">' . esc_textarea( $value ) . '</textarea></div>';
+function ministry_desk_editor( $name, $value, $placeholder = '' ) {
+	static $index = 0;
+	++$index;
+	$id      = 'mom-editor-' . (string) $index;
+	$hint    = $placeholder ? $placeholder : 'Type in plain language. Select words, then use Bold or Italic.';
+	$allowed = array(
+		'a'      => array(
+			'href' => true,
+		),
+		'p'      => array(),
+		'br'     => array(),
+		'strong' => array(),
+		'b'      => array(),
+		'em'     => array(),
+		'i'      => array(),
+		'u'      => array(),
+		'h2'     => array(),
+		'h3'     => array(),
+		'ul'     => array(),
+		'ol'     => array(),
+		'li'     => array(),
+		'div'    => array(),
+	);
+	$html = $value ? wp_kses( $value, $allowed ) : '';
+	echo '<div class="mom-editor">';
+	echo '<div class="mom-editor-bar"><div class="mom-editor-tools">';
+	echo '<button type="button" data-cmd="bold" title="Bold"><strong>B</strong></button>';
+	echo '<button type="button" data-cmd="italic" title="Italic"><em>I</em></button>';
+	echo '<button type="button" data-cmd="underline" title="Underline"><span style="text-decoration:underline">U</span></button>';
+	echo '<button type="button" data-cmd="h2" title="Heading">Heading</button>';
+	echo '<button type="button" data-cmd="ul" title="Bullet list">List</button>';
+	echo '<button type="button" data-cmd="link" title="Link">Link</button>';
+	echo '</div><span>No HTML needed</span></div>';
+	echo '<div class="mom-editor-surface" id="' . esc_attr( $id ) . '" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="' . esc_attr( $hint ) . '">' . $html . '</div>';
+	echo '<textarea class="mom-editor-html" name="' . esc_attr( $name ) . '" hidden>' . esc_textarea( $value ) . '</textarea></div>';
 }
 
 /**
@@ -263,7 +294,7 @@ function ministry_desk_sidebar() {
 			'icon' => 'calendar',
 			'children' => array(
 				array( 'label' => 'All events', 'args' => array() ),
-				array( 'label' => 'Add event', 'args' => array( 'view' => 'edit' ) ),
+				array( 'label' => 'Registrations', 'args' => array( 'view' => 'registrations' ) ),
 			),
 		),
 		array(
@@ -284,7 +315,6 @@ function ministry_desk_sidebar() {
 				array( 'label' => 'Complaints', 'args' => array( 'type' => 'complaint' ) ),
 				array( 'label' => 'Investor interest', 'args' => array( 'type' => 'investor' ) ),
 				array( 'label' => 'General enquiries', 'args' => array( 'type' => 'general' ) ),
-				array( 'label' => 'Registrations', 'args' => array( 'type' => 'registration' ) ),
 			),
 		),
 		array(
@@ -298,7 +328,6 @@ function ministry_desk_sidebar() {
 				array( 'label' => 'Site appearance', 'args' => array( 'part' => 'look' ) ),
 			),
 		),
-		array( 'page' => 'mom-pages', 'label' => 'Pages', 'icon' => 'pages' ),
 	);
 	if ( ministry_desk_can( 'users' ) ) {
 		$items[] = array( 'page' => 'mom-users', 'label' => 'Users & Roles', 'icon' => 'lock' );
@@ -670,14 +699,16 @@ function ministry_desk_screen_notice() {
 	echo '<input type="hidden" name="post_id" value="' . esc_attr( (string) $id ) . '">';
 	$thumb = $post ? (int) get_post_thumbnail_id( $post ) : 0;
 	echo '<div class="mom-split"><div class="mom-main-col">';
-	echo '<section class="mom-card"><h2>Notice details</h2><div class="mom-grid-2">';
+	echo '<section class="mom-card"><h2>Notice details</h2>';
+	ministry_desk_field( 'Title', 'post_title', $title, array( 'required' => true, 'hint' => 'Shown as the heading on the notice and on listing cards.' ) );
+	echo '<div class="mom-grid-2">';
 	ministry_desk_field( 'Notice number', 'notice_number', $number, array( 'readonly' => ! ministry_desk_can( 'notice_numbers' ), 'badges' => array( 'AUTO', 'Director only' ), 'hint' => 'Next number in sequence. Only a role that can change notice numbers may edit this.' ) );
 	ministry_desk_field( 'Type', 'kind_label', 'Public notice', array( 'readonly' => true ) );
 	ministry_desk_field( 'Date issued', 'issued', $post ? (string) get_post_meta( $id, '_mom_issued', true ) : wp_date( 'Y-m-d' ), array( 'type' => 'date', 'required' => true ) );
 	ministry_desk_field( 'Takes effect', 'effect', $post ? (string) get_post_meta( $id, '_mom_effect', true ) : 'Immediately' );
 	ministry_desk_field( 'Deadline (optional)', 'deadline', $post ? (string) get_post_meta( $id, '_mom_deadline', true ) : '', array( 'type' => 'date', 'hint' => 'Shown as a highlighted deadline on the notice.' ) );
 	echo '</div>';
-	ministry_desk_field( 'Short summary', 'post_excerpt', $post ? $post->post_excerpt : '', array( 'type' => 'textarea', 'required' => true, 'hint' => 'Shown on cards and search results. 160 characters maximum. The public listing uses this instead of a title.' ) );
+	ministry_desk_field( 'Short summary', 'post_excerpt', $post ? $post->post_excerpt : '', array( 'type' => 'textarea', 'required' => true, 'hint' => 'Shown on cards and search results. 160 characters maximum.' ) );
 	echo '</section><section class="mom-card"><h2>Cover image</h2><div class="mom-photo-edit">';
 	echo '<div><input type="hidden" id="mom-notice-thumb" name="thumbnail_id" value="' . esc_attr( (string) $thumb ) . '">';
 	echo '<div class="mom-pick-preview">';
@@ -689,7 +720,8 @@ function ministry_desk_screen_notice() {
 	ministry_desk_field( 'Photo description (alt text)', 'alt', $thumb ? (string) get_post_meta( $thumb, '_wp_attachment_image_alt', true ) : '', array( 'required' => true ) );
 	ministry_desk_field( 'Caption / credit', 'caption', $post ? (string) get_post_meta( $id, '_mom_caption', true ) : '' );
 	echo '</div></div></section><section class="mom-card"><h2>Notice text</h2>';
-	ministry_desk_editor( 'post_content', $post ? $post->post_content : '' );
+	echo '<p class="mom-hint">Write the notice in ordinary sentences. Select a word or phrase, then choose Bold, Italic, or Heading.</p>';
+	ministry_desk_editor( 'post_content', $post ? $post->post_content : '', 'Start typing the notice here…' );
 	echo '</section><section class="mom-card"><h2>Signed and attached</h2><div class="mom-grid-2">';
 	ministry_desk_field( 'Signed by', 'signed_by', $post ? (string) get_post_meta( $id, '_mom_signed_by', true ) : '', array( 'required' => true, 'hint' => 'Name and title are saved with the notice, so they stay correct if the person later changes role.' ) );
 	$pdf = $post ? (int) get_post_meta( $id, '_mom_pdf_id', true ) : 0;
@@ -711,6 +743,7 @@ function ministry_desk_screen_notice() {
 	ministry_desk_publish_card( $post, $note );
 	ministry_desk_languages_card( $id, 'mom-notices' );
 	echo '<section class="mom-side-card"><h2>Checklist</h2><ul class="mom-check">';
+	echo '<li><span class="' . ( $title ? 'mom-ok' : 'mom-warn' ) . '">✓</span> Title</li>';
 	echo '<li><span class="' . ( $post && $post->post_excerpt ? 'mom-ok' : 'mom-warn' ) . '">✓</span> Summary</li>';
 	echo '<li><span class="' . ( $post && get_post_meta( $id, '_mom_signed_by', true ) ? 'mom-ok' : 'mom-warn' ) . '">✓</span> Signed by</li>';
 	echo '<li><span class="' . ( $pdf ? 'mom-ok' : 'mom-warn' ) . '">✓</span> Signed PDF attached</li>';

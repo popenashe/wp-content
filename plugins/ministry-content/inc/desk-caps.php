@@ -23,7 +23,6 @@ function ministry_desk_cap_catalog() {
 		'albums'         => array( 'label' => 'Photo albums', 'group' => 'areas' ),
 		'agencies'       => array( 'label' => 'Agencies & Investments', 'group' => 'areas' ),
 		'enquiries'      => array( 'label' => 'Enquiries & Forms', 'group' => 'areas' ),
-		'pages'          => array( 'label' => 'Pages', 'group' => 'areas' ),
 		'people'         => array( 'label' => 'Leadership, departments, offices, and structure', 'group' => 'areas' ),
 		'facts'          => array( 'label' => 'Website facts and settings', 'group' => 'areas' ),
 		'publish'        => array( 'label' => 'Publish and approve', 'group' => 'actions' ),
@@ -40,7 +39,7 @@ function ministry_desk_cap_catalog() {
  * @return string[]
  */
 function ministry_desk_role_preset( $role ) {
-	$officer = array( 'notices', 'documents', 'events', 'services', 'albums', 'agencies', 'enquiries', 'pages' );
+	$officer = array( 'notices', 'documents', 'events', 'services', 'albums', 'agencies', 'enquiries' );
 	if ( 'author' === $role ) {
 		return $officer;
 	}
@@ -154,7 +153,6 @@ function ministry_desk_page_cap( $page ) {
 		'mom-agencies'  => 'agencies',
 		'mom-enquiries' => 'enquiries',
 		'mom-facts'     => 'facts',
-		'mom-pages'     => 'pages',
 		'mom-users'     => 'users',
 	);
 	return isset( $map[ $page ] ) ? $map[ $page ] : '';
@@ -322,7 +320,7 @@ function ministry_desk_store_custom_caps( $user_id, $caps ) {
 	} else {
 		$user->remove_cap( 'publish_posts' );
 	}
-	$upload_areas = array( 'notices', 'documents', 'events', 'services', 'albums', 'agencies', 'pages', 'people' );
+	$upload_areas = array( 'notices', 'documents', 'events', 'services', 'albums', 'agencies', 'people' );
 	if ( array_intersect( $allowed, $upload_areas ) ) {
 		$user->add_cap( 'upload_files' );
 	} else {

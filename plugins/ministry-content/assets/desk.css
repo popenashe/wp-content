@@ -475,10 +475,30 @@ body.mom-desk-ui input[type="button"] {
 
 .mom-editor { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .mom-editor-bar { display: flex; justify-content: space-between; gap: 8px; align-items: center; background: #f7f8fb; padding: 6px 8px; color: var(--muted); font-size: 12px; }
-.mom-editor-tools { display: flex; gap: 4px; }
-.mom-editor-tools button { border: 0; background: transparent; font-weight: 800; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.mom-editor-tools { display: flex; gap: 4px; flex-wrap: wrap; }
+.mom-editor-tools button { border: 0; background: transparent; font-weight: 800; cursor: pointer; padding: 6px 8px; border-radius: 6px; color: var(--ink); }
 .mom-editor-tools button:hover { background: #fff; }
 .mom-editor textarea { border: 0; border-radius: 0; min-height: 160px; }
+.mom-editor-html { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.mom-editor-surface {
+  min-height: 220px;
+  padding: 12px 14px;
+  background: #fff;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+  outline: none;
+}
+.mom-editor-surface.is-empty:before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  pointer-events: none;
+}
+.mom-editor-surface p { margin: 0 0 0.7em; }
+.mom-editor-surface h2 { font-size: 1.2rem; margin: 0.4em 0 0.6em; }
+.mom-editor-surface ul, .mom-editor-surface ol { margin: 0 0 0.7em 1.2em; }
+.mom-editor-surface a { color: var(--blue); }
 
 .mom-check { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .mom-check li { display: flex; gap: 8px; align-items: flex-start; }

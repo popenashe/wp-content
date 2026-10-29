@@ -700,6 +700,13 @@ function ministry_front_news( $body, $name ) {
 				if ( '' === $stored ) {
 					$region = ministry_front_text( $region, (string) $source['content'], $post->post_content, 2 );
 				}
+				$pdf = ministry_front_news_pdf( $post );
+				if ( $pdf['url'] ) {
+					$region = preg_replace( '#(href=")[^"]+\.pdf("(?:[^>]*)\sdownload)#i', '$1' . esc_url( $pdf['url'] ) . '$2', $region );
+					if ( $pdf['size'] ) {
+						$region = preg_replace( '#PDF · [^<]+#', esc_html( $pdf['label'] ), $region, 1 );
+					}
+				}
 				return $region;
 			}
 		);
@@ -724,13 +731,224 @@ function ministry_front_news( $body, $name ) {
 function ministry_front_news_card( $post, $compact ) {
 	$url   = ministry_front_news_link( $post );
 	$kind  = (string) get_post_meta( $post->ID, '_mom_kind', true );
-	$label = 'notice' === $kind ? 'Public notice' : 'News';
-	$image = ministry_thumb_url( $post->ID, 'large' );
-	$img   = $image ? '<img src="' . esc_url( $image ) . '" alt="" loading="lazy">' : '';
+	$kind  = $kind ? $kind : 'press';
+	$label = ministry_front_news_tag( $post, $compact ? 'home' : 'list' );
+	$when  = ministry_front_news_when( $post, $compact ? 'home' : 'list' );
+	$pdf   = ministry_front_news_pdf( $post );
+	$read  = 'notice' === $kind ? 'Read notice' : 'Read more';
 	if ( $compact ) {
-		return '<article class="notice-card"><p class="meta"><span class="tag gold">' . esc_html( $label ) . '</span> ' . esc_html( ministry_format_date( $post->post_date ) ) . '</p><h3>' . esc_html( $post->post_title ) . '</h3><p class="small muted">' . esc_html( $post->post_excerpt ) . '</p><div class="links"><a href="' . esc_url( $url ) . '">Read notice</a></div></article>';
+		$links = '<div class="links"><a href="' . esc_url( $url ) . '">' . esc_html( $read ) . ' ' . ministry_front_icon( 'arrow' ) . '</a>';
+		if ( $pdf['url'] ) {
+			$links .= '<a href="' . esc_url( $pdf['url'] ) . '" download>' . ministry_front_icon( 'download' ) . ' PDF</a>';
+		}
+		$links .= '</div>';
+		$tag = 'notice' === $kind ? 'tag gold' : 'tag';
+		return '<article class="notice-card"><p class="meta"><span class="' . esc_attr( $tag ) . '">' . esc_html( $label ) . '</span> ' . esc_html( $when ) . '</p><h3>' . esc_html( $post->post_title ) . '</h3><p class="small muted">' . esc_html( $post->post_excerpt ) . '</p>' . $links . '</article>';
 	}
-	return '<article class="release" data-cat="' . esc_attr( $kind ? $kind : 'press' ) . '">' . $img . '<div><p class="meta"><span class="tag">' . esc_html( $label ) . '</span> ' . esc_html( ministry_format_date( $post->post_date ) ) . '</p><h3><a href="' . esc_url( $url ) . '">' . esc_html( $post->post_title ) . '</a></h3><p class="muted small">' . esc_html( $post->post_excerpt ) . '</p></div></article>';
+	$image = ministry_thumb_url( $post->ID, 'large' );
+	$alt   = $image ? (string) get_post_meta( (int) get_post_thumbnail_id( $post ), '_wp_attachment_image_alt', true ) : '';
+	$img   = $image ? '<img src="' . esc_url( $image ) . '" alt="' . esc_attr( $alt ) . '" loading="lazy">' : '';
+	$acts  = '<div style="display:flex;gap:18px;align-items:center"><a class="link-arrow small" href="' . esc_url( $url ) . '">' . esc_html( $read === 'Read notice' ? 'Read more' : $read ) . ' ' . ministry_front_icon( 'arrow' ) . '</a>';
+	if ( $pdf['url'] ) {
+		$acts .= '<a class="small" href="' . esc_url( $pdf['url'] ) . '" download>' . ministry_front_icon( 'download' ) . ' ' . esc_html( $pdf['label'] ) . '</a>';
+	}
+	$acts .= '</div>';
+	return '<article class="release" data-cat="' . esc_attr( $kind ) . '">' . $img . '<div><p class="meta"><span class="tag">' . esc_html( $label ) . '</span> ' . esc_html( $when ) . '</p><h3><a href="' . esc_url( $url ) . '">' . esc_html( $post->post_title ) . '</a></h3><p class="muted small">' . esc_html( $post->post_excerpt ) . '</p>' . $acts . '</div></article>';
+}
+
+/**
+ * @param WP_Post $post    News record.
+ * @param string  $context home|list|article.
+ */
+function ministry_front_news_tag( $post, $context = 'list' ) {
+	$kind   = (string) get_post_meta( $post->ID, '_mom_kind', true );
+	$number = (string) get_post_meta( $post->ID, '_mom_number', true );
+	if ( 'notice' === $kind ) {
+		if ( $number && preg_match( '/(\d+)\s*(?:of|\/)\s*(\d{4})/', $number, $match ) ) {
+			if ( 'article' === $context ) {
+				return 'Public Notice · No. ' . $match[1] . ' of ' . $match[2];
+			}
+			return 'Public Notice ' . $match[1] . '/' . $match[2];
+		}
+		if ( $number ) {
+			return 'article' === $context ? 'Public Notice · No. ' . $number : 'Public Notice ' . $number;
+		}
+		return 'Public notice';
+	}
+	$map = array(
+		'press'   => 'Press statement',
+		'speech'  => 'Speech',
+		'tender'  => 'Tender',
+		'vacancy' => 'Vacancy',
+		'news'    => 'News',
+	);
+	return isset( $map[ $kind ] ) ? $map[ $kind ] : 'News';
+}
+
+/**
+ * @param WP_Post $post    News record.
+ * @param string  $context home|list|article.
+ */
+function ministry_front_news_when( $post, $context = 'list' ) {
+	$kind   = (string) get_post_meta( $post->ID, '_mom_kind', true );
+	$issued = (string) get_post_meta( $post->ID, '_mom_issued', true );
+	$effect = (string) get_post_meta( $post->ID, '_mom_effect', true );
+	if ( 'notice' === $kind ) {
+		if ( 'home' === $context ) {
+			if ( $issued && strtotime( $issued ) ) {
+				return ministry_format_date( $issued );
+			}
+			return $effect ? $effect : ministry_format_date( $post->post_date );
+		}
+		if ( $effect ) {
+			if ( false !== stripos( $effect, 'immediate' ) ) {
+				return 'Effective immediately';
+			}
+			if ( 0 === stripos( $effect, 'effective' ) ) {
+				return $effect;
+			}
+			if ( strtotime( $effect ) ) {
+				return 'Effective ' . ministry_format_date( $effect );
+			}
+			return 'Effective ' . $effect;
+		}
+		if ( $issued && strtotime( $issued ) ) {
+			return 'Effective ' . ministry_format_date( $issued );
+		}
+	}
+	return ministry_format_date( $post->post_date );
+}
+
+/**
+ * @param WP_Post $post News record.
+ * @return array{id:int,url:string,size:string,label:string}
+ */
+function ministry_front_news_pdf( $post ) {
+	$id   = (int) get_post_meta( $post->ID, '_mom_pdf_id', true );
+	$out  = array(
+		'id'    => $id,
+		'url'   => '',
+		'size'  => '',
+		'label' => 'PDF',
+	);
+	if ( ! $id ) {
+		return $out;
+	}
+	$url = wp_get_attachment_url( $id );
+	if ( ! $url ) {
+		return $out;
+	}
+	$out['url'] = $url;
+	$file       = get_attached_file( $id );
+	if ( $file && is_readable( $file ) ) {
+		$out['size']  = size_format( (int) filesize( $file ), 0 );
+		$out['label'] = 'PDF · ' . $out['size'];
+	}
+	return $out;
+}
+
+/**
+ * Signed-PDF download row used on live public notices.
+ *
+ * @param WP_Post $post News record.
+ */
+function ministry_front_news_docbox( $post ) {
+	$pdf = ministry_front_news_pdf( $post );
+	if ( ! $pdf['url'] ) {
+		return '';
+	}
+	$number = (string) get_post_meta( $post->ID, '_mom_number', true );
+	$label  = $post->post_title;
+	if ( $number && preg_match( '/(\d+)\s*(?:of|\/)\s*(\d{4})/', $number, $match ) ) {
+		$label = 'Public Notice No. ' . $match[1] . ' of ' . $match[2] . ' — ' . $post->post_title;
+	} elseif ( $number ) {
+		$label = 'Public Notice ' . $number . ' — ' . $post->post_title;
+	}
+	$html  = '<div class="doc-box"><span class="well">' . ministry_front_icon( 'file' ) . '</span><div class="grow"><strong>' . esc_html( $label ) . '</strong><br><span class="small muted">' . esc_html( $pdf['label'] ) . '</span></div>';
+	$html .= '<a class="btn btn-navy btn-sm" href="' . esc_url( $pdf['url'] ) . '" download>Download ' . ministry_front_icon( 'download' ) . '</a></div>';
+	return $html;
+}
+
+/**
+ * @param WP_Post $post News record.
+ */
+function ministry_front_news_issued( $post ) {
+	$signed = trim( (string) get_post_meta( $post->ID, '_mom_signed_by', true ) );
+	if ( '' === $signed ) {
+		return '';
+	}
+	$name  = $signed;
+	$title = '';
+	if ( str_contains( $signed, "\n" ) ) {
+		$parts = array_map( 'trim', explode( "\n", $signed, 2 ) );
+		$name  = $parts[0];
+		$title = isset( $parts[1] ) ? $parts[1] : '';
+	} elseif ( str_contains( $signed, ',' ) ) {
+		$parts = array_map( 'trim', explode( ',', $signed, 2 ) );
+		$name  = $parts[0];
+		$title = isset( $parts[1] ) ? $parts[1] : '';
+	}
+	$photo = '';
+	$settings = function_exists( 'ministry_settings' ) ? ministry_settings() : array();
+	$leaders  = isset( $settings['leaders'] ) && is_array( $settings['leaders'] ) ? $settings['leaders'] : array();
+	foreach ( $leaders as $leader ) {
+		if ( ! is_array( $leader ) || empty( $leader['name'] ) ) {
+			continue;
+		}
+		if ( false === stripos( $name, (string) $leader['name'] ) && false === stripos( (string) $leader['name'], $name ) ) {
+			continue;
+		}
+		$src = isset( $leader['imageUrl'] ) ? (string) $leader['imageUrl'] : '';
+		if ( $src ) {
+			$photo = '<img src="' . esc_url( $src ) . '" alt="' . esc_attr( $name ) . '">';
+		}
+		if ( '' === $title && ! empty( $leader['title'] ) ) {
+			$title = (string) $leader['title'];
+		}
+		break;
+	}
+	$html  = '<div class="issued"><div><p class="eyebrow" style="margin:0">Issued by</p><strong>' . esc_html( $name ) . '</strong>';
+	if ( $title ) {
+		$html .= '<br><span class="small muted">' . esc_html( $title ) . '</span>';
+	}
+	$html .= '</div>' . $photo . '</div>';
+	return $html;
+}
+
+/**
+ * @param string $url Canonical story URL.
+ */
+function ministry_front_news_share( $url ) {
+	$u = rawurlencode( $url );
+	$html  = '<aside><p class="eyebrow" style="color:var(--muted)">Share</p><div class="share">';
+	$html .= '<a href="https://www.facebook.com/sharer/sharer.php?u=' . $u . '" aria-label="Share on Facebook">' . ministry_front_icon( 'facebook' ) . '</a>';
+	$html .= '<a href="https://twitter.com/intent/tweet?url=' . $u . '" aria-label="Share on X">' . ministry_front_icon( 'x' ) . '</a>';
+	$html .= '<a href="https://www.linkedin.com/sharing/share-offsite/?url=' . $u . '" aria-label="Share on LinkedIn">' . ministry_front_icon( 'linkedin' ) . '</a>';
+	$html .= '<a href="https://wa.me/?text=' . $u . '" aria-label="Share on WhatsApp">' . ministry_front_icon( 'whatsapp' ) . '</a>';
+	$html .= '<button type="button" onclick="window.print()" aria-label="Print">' . ministry_front_icon( 'print' ) . '</button></div></aside>';
+	return $html;
+}
+
+/**
+ * @param WP_Post $post News record.
+ */
+function ministry_front_news_related( $post ) {
+	$others = get_posts(
+		array(
+			'post_type'      => 'mom_news',
+			'post_status'    => 'publish',
+			'posts_per_page' => 3,
+			'exclude'        => array( $post->ID ),
+			'orderby'        => 'date',
+		)
+	);
+	$html = '<aside class="related-list"><p class="eyebrow" style="color:var(--muted)">Related</p>';
+	foreach ( $others as $other ) {
+		$html .= '<a href="' . esc_url( ministry_front_news_link( $other ) ) . '">' . esc_html( $other->post_title ) . '</a>';
+	}
+	$html .= '<a href="' . esc_url( ministry_site_url( 'news' ) ) . '">News &amp; Gallery</a>';
+	$html .= '<a href="' . esc_url( ministry_site_url( 'resources' ) ) . '">Resources</a></aside>';
+	return $html;
 }
 
 /**
@@ -2079,12 +2297,44 @@ function ministry_front_dynamic_news( $slug ) {
 		return;
 	}
 	$post = $posts[0];
+	$url  = home_url( '/news/' . $post->post_name . '/' );
+	$kind = (string) get_post_meta( $post->ID, '_mom_kind', true );
+	$tag  = 'notice' === $kind ? 'tag gold' : 'tag';
 	$main = '<div class="wrap"><div style="padding-top:20px"><nav class="crumbs" aria-label="Breadcrumb"><a href="' . esc_url( home_url( '/' ) ) . '">Home</a><span aria-hidden="true">&rsaquo;</span><a href="' . esc_url( ministry_site_url( 'news' ) ) . '">News &amp; Gallery</a><span aria-hidden="true">&rsaquo;</span><span aria-current="page">' . esc_html( $post->post_title ) . '</span></nav></div>';
-	$main .= '<div class="article-layout"><article class="article"><h1>' . esc_html( $post->post_title ) . '</h1>';
-	$main .= '<p class="standfirst">' . esc_html( $post->post_excerpt ) . '</p>';
+	$main .= '<div class="article-layout">';
+	$main .= ministry_front_news_share( $url );
+	$main .= '<article class="article">';
+	$main .= '<p class="meta"><span class="' . esc_attr( $tag ) . '">' . esc_html( ministry_front_news_tag( $post, 'article' ) ) . '</span> ' . esc_html( ministry_front_news_when( $post, 'article' ) ) . '</p>';
+	$main .= '<h1>' . esc_html( $post->post_title ) . '</h1>';
+	if ( $post->post_excerpt ) {
+		$main .= '<p class="standfirst">' . esc_html( $post->post_excerpt ) . '</p>';
+	}
+	$thumb = (int) get_post_thumbnail_id( $post );
+	if ( $thumb ) {
+		$src     = wp_get_attachment_image_url( $thumb, 'large' );
+		$alt     = (string) get_post_meta( $thumb, '_wp_attachment_image_alt', true );
+		$caption = (string) get_post_meta( $post->ID, '_mom_caption', true );
+		if ( $src ) {
+			$main .= '<figure><img src="' . esc_url( $src ) . '" alt="' . esc_attr( $alt ) . '">';
+			if ( $caption ) {
+				$main .= '<figcaption>' . esc_html( $caption ) . '</figcaption>';
+			}
+			$main .= '</figure>';
+		}
+	}
 	$main .= wp_kses_post( wpautop( $post->post_content ) );
-	$main .= '</article></div></div>';
+	$main .= ministry_front_news_issued( $post );
+	$main .= ministry_front_news_docbox( $post );
+	if ( 'notice' === $kind ) {
+		$main .= '<p class="small muted">Queries: toll-free <strong>08004577</strong> (landline only) · <a href="mailto:askminister@mines.gov.zw">askminister@mines.gov.zw</a></p>';
+	}
+	$main .= '</article>';
+	$main .= ministry_front_news_related( $post );
+	$main .= '</div></div>';
 	$doc = function_exists( 'ministry_bind_wrap' ) ? ministry_bind_wrap( 'news', $main ) : array( 'head' => '', 'body' => $main );
+	$full = $post->post_title . ' | ' . get_bloginfo( 'name' );
+	$head = preg_replace( '#<title>.*?</title>#s', '<title>' . esc_html( $full ) . '</title>', $doc['head'], 1 );
+	$doc['head'] = is_string( $head ) ? $head : $doc['head'];
 	status_header( 200 );
 	ministry_site_output( $doc['head'], $doc['body'] );
 	exit;

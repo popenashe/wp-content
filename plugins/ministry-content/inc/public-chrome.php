@@ -969,5 +969,26 @@ function ministry_front_sitemap_html() {
  * Small map pin used on injected cards.
  */
 function ministry_front_pin_svg() {
-	return '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>';
+	return ministry_front_icon( 'pin' );
+}
+
+/**
+ * Inline icons matching the live design files.
+ *
+ * @param string $name Icon key.
+ */
+function ministry_front_icon( $name ) {
+	$paths = array(
+		'pin'      => '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+		'arrow'    => '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+		'download' => '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+		'file'     => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>',
+		'facebook' => '<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>',
+		'x'        => '<path d="M4 4l16 16"/><path d="M20 4 4 20"/>',
+		'linkedin' => '<rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 10v7"/><path d="M7 7h.01"/><path d="M11 17v-7"/><path d="M11 13a3 3 0 0 1 6 0v4"/>',
+		'whatsapp' => '<path d="M3 21l1.7-5A9 9 0 1 1 8 19.3z"/>',
+		'print'    => '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+	);
+	$inner = isset( $paths[ $name ] ) ? $paths[ $name ] : $paths['arrow'];
+	return '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . $inner . '</svg>';
 }

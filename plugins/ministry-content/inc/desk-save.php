@@ -20,6 +20,10 @@ function ministry_desk_handle_save() {
 	$raw  = isset( $_POST['form'] ) ? wp_unslash( $_POST['form'] ) : ( isset( $_GET['form'] ) ? wp_unslash( $_GET['form'] ) : '' );
 	$form = sanitize_key( $raw );
 	$need = ministry_desk_form_cap( $form );
+	$export_type = isset( $_REQUEST['type'] ) ? sanitize_key( wp_unslash( $_REQUEST['type'] ) ) : '';
+	if ( 'export' === $form && ministry_desk_is_registration_type( $export_type ) && ministry_desk_can( 'events' ) ) {
+		$need = 'events';
+	}
 	if ( $need && ! ministry_desk_can( $need ) ) {
 		wp_die( esc_html__( 'Your role cannot save this.', 'ministry-content' ) );
 	}
@@ -295,7 +299,9 @@ function ministry_desk_save_story( $form ) {
 		} elseif ( '' === $number ) {
 			$number = ministry_desk_next_notice_number();
 		}
-		$title = $number ? 'Public Notice ' . $number : wp_trim_words( $excerpt, 12, '' );
+		if ( '' === $title ) {
+			$title = $number ? 'Public Notice ' . $number : wp_trim_words( $excerpt, 12, '' );
+		}
 		if ( '' === $title ) {
 			$title = 'Public notice';
 		}
@@ -329,7 +335,11 @@ function ministry_desk_save_story( $form ) {
 	update_post_meta( $id, '_mom_effect', sanitize_text_field( isset( $_POST['effect'] ) ? wp_unslash( $_POST['effect'] ) : '' ) );
 	update_post_meta( $id, '_mom_deadline', sanitize_text_field( isset( $_POST['deadline'] ) ? wp_unslash( $_POST['deadline'] ) : '' ) );
 	update_post_meta( $id, '_mom_signed_by', sanitize_text_field( isset( $_POST['signed_by'] ) ? wp_unslash( $_POST['signed_by'] ) : '' ) );
-	update_post_meta( $id, '_mom_pdf_id', absint( isset( $_POST['pdf_id'] ) ? wp_unslash( $_POST['pdf_id'] ) : 0 ) );
+	$pdf_id = absint( isset( $_POST['pdf_id'] ) ? wp_unslash( $_POST['pdf_id'] ) : 0 );
+	update_post_meta( $id, '_mom_pdf_id', $pdf_id );
+	if ( 'notice' === $form ) {
+		ministry_desk_sync_notice_document( $id, $pdf_id, $title, $number );
+	}
 	$banner = empty( $_POST['banner'] ) ? '0' : '1';
 	update_post_meta( $id, '_mom_banner', $banner );
 	if ( '1' === $banner ) {
@@ -367,6 +377,42 @@ function ministry_desk_save_story( $form ) {
 	update_post_meta( $id, '_mom_i18n_stale', ministry_desk_i18n( $id )['sn']['title'] || ministry_desk_i18n( $id )['nd']['title'] ? '1' : '0' );
 	ministry_desk_log( ( 'pending' === $status ? 'submitted ' : 'updated ' ) . $postarr['post_title'] );
 	return $id;
+}
+
+/**
+ * Keep the signed PDF on the Documents list, as the notice form promises.
+ *
+ * @param int    $news_id Notice ID.
+ * @param int    $pdf_id  Attachment ID.
+ * @param string $title   Notice title.
+ * @param string $number  Notice number.
+ */
+function ministry_desk_sync_notice_document( $news_id, $pdf_id, $title, $number ) {
+	$news_id = (int) $news_id;
+	$pdf_id  = (int) $pdf_id;
+	if ( ! $news_id || ! $pdf_id ) {
+		return;
+	}
+	$existing = (int) get_post_meta( $news_id, '_mom_document_id', true );
+	$label    = $number ? 'Public Notice ' . $number . ' — ' . $title : $title;
+	$postarr  = array(
+		'post_type'    => 'mom_document',
+		'post_title'   => $label,
+		'post_excerpt' => $number ? 'Notice ' . $number : '',
+		'post_status'  => 'publish' === get_post_status( $news_id ) ? 'publish' : 'draft',
+	);
+	if ( $existing && get_post( $existing ) ) {
+		$postarr['ID'] = $existing;
+		$doc_id        = (int) wp_update_post( $postarr );
+	} else {
+		$doc_id = (int) wp_insert_post( $postarr );
+	}
+	if ( ! $doc_id ) {
+		return;
+	}
+	update_post_meta( $doc_id, '_mom_category', 'publications' );
+	update_post_meta( $doc_id, '_mom_file_id', $pdf_id );
+	update_post_meta( $news_id, '_mom_document_id', $doc_id );
 }
 
 /**
@@ -862,7 +908,10 @@ function ministry_desk_save_department( $form ) {
 	if ( isset( $_POST['functions'] ) ) {
 		update_post_meta( $id, '_mom_functions', ministry_desk_text_list( 'functions' ) );
 	}
-	update_post_meta( $id, '_mom_contact_name', sanitize_text_field( isset( $_POST['head'] ) ? wp_unslash( $_POST['head'] ) : '' ) );
+	if ( 'office' !== $form ) {
+		update_post_meta( $id, '_mom_contact_name', sanitize_text_field( isset( $_POST['head'] ) ? wp_unslash( $_POST['head'] ) : '' ) );
+		update_post_meta( $id, '_mom_head_title', sanitize_text_field( isset( $_POST['head_title'] ) ? wp_unslash( $_POST['head_title'] ) : '' ) );
+	}
 	update_post_meta( $id, '_mom_email', sanitize_text_field( isset( $_POST['email'] ) ? wp_unslash( $_POST['email'] ) : '' ) );
 	$phones = ministry_desk_phone_list();
 	$phone  = sanitize_text_field( isset( $_POST['phone'] ) ? wp_unslash( $_POST['phone'] ) : '' );
@@ -882,13 +931,14 @@ function ministry_desk_save_department( $form ) {
 	if ( 'office' === $form && function_exists( 'ministry_office_geocode_save' ) ) {
 		ministry_office_geocode_save( $id );
 	}
-	update_post_meta( $id, '_mom_head_title', sanitize_text_field( isset( $_POST['head_title'] ) ? wp_unslash( $_POST['head_title'] ) : '' ) );
-	$thumb = absint( isset( $_POST['thumbnail_id'] ) ? wp_unslash( $_POST['thumbnail_id'] ) : 0 );
-	if ( $thumb ) {
-		set_post_thumbnail( $id, $thumb );
-		update_post_meta( $thumb, '_wp_attachment_image_alt', sanitize_text_field( isset( $_POST['alt'] ) ? wp_unslash( $_POST['alt'] ) : '' ) );
-	} elseif ( isset( $_POST['thumbnail_id'] ) ) {
-		delete_post_thumbnail( $id );
+	if ( 'office' !== $form ) {
+		$thumb = absint( isset( $_POST['thumbnail_id'] ) ? wp_unslash( $_POST['thumbnail_id'] ) : 0 );
+		if ( $thumb ) {
+			set_post_thumbnail( $id, $thumb );
+			update_post_meta( $thumb, '_wp_attachment_image_alt', sanitize_text_field( isset( $_POST['alt'] ) ? wp_unslash( $_POST['alt'] ) : '' ) );
+		} elseif ( isset( $_POST['thumbnail_id'] ) ) {
+			delete_post_thumbnail( $id );
+		}
 	}
 	if ( 'department' === $form ) {
 		$photo = absint( isset( $_POST['photo_id'] ) ? wp_unslash( $_POST['photo_id'] ) : 0 );
@@ -1397,16 +1447,47 @@ function ministry_desk_save_page() {
  * Download enquiries as a spreadsheet.
  */
 function ministry_desk_export_enquiries() {
-	$type  = isset( $_REQUEST['type'] ) ? sanitize_key( wp_unslash( $_REQUEST['type'] ) ) : '';
-	$posts = ministry_desk_posts( 'mom_enquiry', array( 'posts_per_page' => 500 ) );
-	$slug  = $type ? $type : 'enquiries';
+	$type     = isset( $_REQUEST['type'] ) ? sanitize_key( wp_unslash( $_REQUEST['type'] ) ) : '';
+	$event_id = isset( $_REQUEST['event_id'] ) ? absint( wp_unslash( $_REQUEST['event_id'] ) ) : 0;
+	$regs     = ministry_desk_is_registration_type( $type );
+	$posts    = ministry_desk_posts( 'mom_enquiry', array( 'posts_per_page' => 500 ) );
+	$slug     = $regs ? 'registrations' : ( $type ? $type : 'enquiries' );
 	nocache_headers();
 	header( 'Content-Type: text/csv; charset=utf-8' );
 	header( 'Content-Disposition: attachment; filename=' . sanitize_file_name( $slug ) . '.csv' );
 	$out = fopen( 'php://output', 'w' );
-	fputcsv( $out, array( 'Received', 'Form', 'Subject', 'From', 'Email', 'Phone', 'Office', 'Organisation', 'Event', 'Status', 'Message' ) );
+	if ( $regs ) {
+		fputcsv( $out, array( 'Received', 'Event', 'Name', 'Email', 'Phone', 'Organisation', 'Notes', 'Status' ) );
+	} else {
+		fputcsv( $out, array( 'Received', 'Form', 'Subject', 'From', 'Email', 'Phone', 'Office', 'Organisation', 'Status', 'Message' ) );
+	}
 	foreach ( $posts as $post ) {
 		$item_type = (string) get_post_meta( $post->ID, '_mom_type', true );
+		if ( $regs ) {
+			if ( ! ministry_desk_is_registration_type( $item_type ) ) {
+				continue;
+			}
+			if ( $event_id && (int) get_post_meta( $post->ID, '_mom_event_id', true ) !== $event_id ) {
+				continue;
+			}
+			fputcsv(
+				$out,
+				array(
+					$post->post_date,
+					(string) get_post_meta( $post->ID, '_mom_event', true ),
+					(string) get_post_meta( $post->ID, '_mom_name', true ),
+					(string) get_post_meta( $post->ID, '_mom_email', true ),
+					(string) get_post_meta( $post->ID, '_mom_phone', true ),
+					(string) get_post_meta( $post->ID, '_mom_org', true ),
+					wp_strip_all_tags( $post->post_content ),
+					(string) get_post_meta( $post->ID, '_mom_status', true ),
+				)
+			);
+			continue;
+		}
+		if ( ministry_desk_is_registration_type( $item_type ) ) {
+			continue;
+		}
 		if ( $type && $item_type !== $type ) {
 			continue;
 		}
@@ -1421,7 +1502,6 @@ function ministry_desk_export_enquiries() {
 				(string) get_post_meta( $post->ID, '_mom_phone', true ),
 				(string) get_post_meta( $post->ID, '_mom_office', true ),
 				(string) get_post_meta( $post->ID, '_mom_org', true ),
-				(string) get_post_meta( $post->ID, '_mom_event', true ),
 				(string) get_post_meta( $post->ID, '_mom_status', true ),
 				wp_strip_all_tags( $post->post_content ),
 			)

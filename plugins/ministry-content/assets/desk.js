@@ -78,17 +78,60 @@
     box.find("input").val($(this).data("value"));
   });
 
-  $(document).on("click", ".mom-editor-tools button", function () {
-    var area = $(this).closest(".mom-editor").find("textarea").get(0);
-    if (!area) return;
-    var token = $(this).data("wrap");
-    var start = area.selectionStart;
-    var end = area.selectionEnd;
-    var selected = area.value.slice(start, end) || "text";
-    var insert = token === "link" ? '<a href="">' + selected + "</a>" : "<" + token + ">" + selected + "</" + token + ">";
-    area.setRangeText(insert, start, end, "end");
-    area.focus();
+  function syncEditor(box) {
+    var surface = box.find(".mom-editor-surface");
+    var area = box.find(".mom-editor-html");
+    if (!surface.length || !area.length) return;
+    area.val(surface.html());
+    surface.toggleClass("is-empty", !$.trim(surface.text()));
+  }
+
+  function initEditors() {
+    document.execCommand("defaultParagraphSeparator", false, "p");
+    $(".mom-editor").each(function () {
+      syncEditor($(this));
+    });
+  }
+
+  $(document).on("input blur", ".mom-editor-surface", function () {
+    syncEditor($(this).closest(".mom-editor"));
   });
+
+  $(document).on("submit", "form", function () {
+    $(this).find(".mom-editor").each(function () {
+      syncEditor($(this));
+    });
+  });
+
+  $(document).on("paste", ".mom-editor-surface", function (event) {
+    event.preventDefault();
+    var clip = event.originalEvent && event.originalEvent.clipboardData;
+    var text = clip ? clip.getData("text/plain") : "";
+    document.execCommand("insertText", false, text || "");
+    syncEditor($(this).closest(".mom-editor"));
+  });
+
+  $(document).on("click", ".mom-editor-tools button", function () {
+    var box = $(this).closest(".mom-editor");
+    var surface = box.find(".mom-editor-surface").get(0);
+    var cmd = $(this).data("cmd");
+    if (!surface) return;
+    surface.focus();
+    document.execCommand("defaultParagraphSeparator", false, "p");
+    if (cmd === "link") {
+      var href = window.prompt("Link address", "https://");
+      if (href) document.execCommand("createLink", false, href);
+    } else if (cmd === "h2") {
+      document.execCommand("formatBlock", false, "h2");
+    } else if (cmd === "ul") {
+      document.execCommand("insertUnorderedList", false, null);
+    } else {
+      document.execCommand(cmd, false, null);
+    }
+    syncEditor(box);
+  });
+
+  initEditors();
 
   function applyPick(button, file) {
     var target = $("#" + button.data("target"));

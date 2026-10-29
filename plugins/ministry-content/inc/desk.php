@@ -68,7 +68,6 @@ function ministry_desk_menus() {
 		'mom-agencies'  => 'Agencies & Investments',
 		'mom-enquiries' => 'Enquiries & Forms',
 		'mom-facts'     => 'Website Facts & Settings',
-		'mom-pages'     => 'Pages',
 	);
 	foreach ( $pages as $slug => $label ) {
 		add_submenu_page( 'mom-desk', $label, $label, $cap, $slug, 'ministry_desk_router' );
@@ -239,6 +238,9 @@ function ministry_desk_redirect_editor() {
 		'mom_banner'      => array( 'mom-facts', '' ),
 		'mom_enquiry'     => array( 'mom-enquiries', '' ),
 	);
+	if ( 'mom_enquiry' === $type && $id && ministry_desk_is_registration_type( (string) get_post_meta( $id, '_mom_type', true ) ) ) {
+		$map['mom_enquiry'] = array( 'mom-events', 'registrations' );
+	}
 	if ( 'mom_department' === $type ) {
 		$view = ( $id && '1' === get_post_meta( $id, '_mom_provincial', true ) ) ? 'office' : 'department';
 		$map['mom_department'] = array( 'mom-people', $view );
@@ -329,6 +331,15 @@ function ministry_desk_icon( $name ) {
 function ministry_desk_url( $page, $args = array() ) {
 	$args['page'] = $page;
 	return add_query_arg( $args, admin_url( 'admin.php' ) );
+}
+
+/**
+ * Enquiry types that belong on Events → Registrations, not Enquiries.
+ *
+ * @param string $type Stored _mom_type.
+ */
+function ministry_desk_is_registration_type( $type ) {
+	return in_array( $type, array( 'registration', 'event' ), true );
 }
 
 /**
@@ -726,6 +737,10 @@ function ministry_desk_router() {
 	if ( ! ministry_desk_can_open() ) {
 		wp_die( esc_html__( 'You cannot open the staff desk.', 'ministry-content' ) );
 	}
+	if ( 'mom-pages' === ministry_desk_page() ) {
+		wp_safe_redirect( ministry_desk_url( 'mom-desk' ) );
+		exit;
+	}
 	if ( ! ministry_desk_can_page( ministry_desk_page(), ministry_desk_view() ) ) {
 		wp_die( esc_html__( 'Your role cannot open this screen.', 'ministry-content' ) );
 	}
@@ -766,6 +781,10 @@ function ministry_desk_router() {
 		ministry_desk_screen_event();
 		return;
 	}
+	if ( 'mom-events' === $page && 'registrations' === $view ) {
+		ministry_desk_screen_registrations();
+		return;
+	}
 	if ( 'mom-albums' === $page && 'edit' === $view ) {
 		ministry_desk_screen_album();
 		return;
@@ -782,9 +801,13 @@ function ministry_desk_router() {
 		ministry_desk_screen_photo_upload();
 		return;
 	}
-	if ( 'mom-enquiries' === $page && 'registration' === ( isset( $_GET['type'] ) ? sanitize_key( wp_unslash( $_GET['type'] ) ) : '' ) ) {
-		ministry_desk_screen_enquiries();
-		return;
+	if ( 'mom-enquiries' === $page && ministry_desk_is_registration_type( isset( $_GET['type'] ) ? sanitize_key( wp_unslash( $_GET['type'] ) ) : '' ) ) {
+		$to = array( 'view' => 'registrations' );
+		if ( ! empty( $_GET['id'] ) ) {
+			$to['id'] = absint( wp_unslash( $_GET['id'] ) );
+		}
+		wp_safe_redirect( ministry_desk_url( 'mom-events', $to ) );
+		exit;
 	}
 	if ( 'mom-people' === $page && 'person' === $view ) {
 		ministry_desk_screen_person();
@@ -814,10 +837,6 @@ function ministry_desk_router() {
 		ministry_desk_screen_opportunity();
 		return;
 	}
-	if ( 'mom-pages' === $page && 'edit' === $view ) {
-		ministry_desk_screen_page();
-		return;
-	}
 	$map = array(
 		'mom-desk'      => 'ministry_desk_screen_dashboard',
 		'mom-notices'   => 'ministry_desk_screen_notices',
@@ -829,7 +848,6 @@ function ministry_desk_router() {
 		'mom-agencies'  => 'ministry_desk_screen_agencies',
 		'mom-enquiries' => 'ministry_desk_screen_enquiries',
 		'mom-facts'     => 'ministry_desk_screen_facts',
-		'mom-pages'     => 'ministry_desk_screen_pages',
 		'mom-users'     => 'ministry_desk_screen_users',
 	);
 	if ( isset( $map[ $page ] ) ) {
