@@ -58,7 +58,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .masthead .wrap { display: flex; align-items: center; gap: 20px; padding-top: 16px; padding-bottom: 16px; }
 .brand { display: flex; align-items: center; gap: 22px; text-decoration: none; color: var(--ink); flex: 1; min-width: 0; }
 .logo-crop { display: block; flex: none; width: 200px; }
+.brand .logo-crop { overflow: hidden; aspect-ratio: 600 / 412; }
 .logo-crop img { width: 100%; height: auto; display: block; }
+.brand .logo-crop img { height: 100%; object-fit: cover; object-position: top center; }
 .brand strong { display: block; font-family: var(--serif); font-size: 2.08rem; color: var(--green); line-height: 1.2; }
 .brand span { font-size: 1.28rem; color: var(--muted); }
 .search { display: flex; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; width: 300px; }

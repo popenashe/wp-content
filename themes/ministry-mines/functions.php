@@ -67,8 +67,8 @@ add_action(
 				. '.mom-assistant-close{right:12px;bottom:604px;width:36px;height:36px;border-radius:999px}'
 				. '@media (max-width:640px){'
 				. '.mom-assistant-launch{right:12px;bottom:12px;padding:8px 12px;font-size:13px;min-height:44px}'
-				. '#knowbot-widget-root.is-open iframe{width:calc(100vw - 24px)!important;max-width:calc(100vw - 24px)!important;height:min(500px,calc(100vh - 110px))!important;max-height:calc(100vh - 110px)!important;right:12px!important;bottom:12px!important;border-radius:12px!important}'
-				. '.mom-assistant-close{right:20px;bottom:calc(12px + min(500px, 100vh - 110px) - 44px)}'
+				. '#knowbot-widget-root.is-open iframe{width:calc(100vw - 40px)!important;max-width:calc(100vw - 40px)!important;height:min(420px,calc(100vh - 160px))!important;max-height:calc(100vh - 160px)!important;right:16px!important;bottom:16px!important;border-radius:12px!important}'
+				. '.mom-assistant-close{right:24px;bottom:calc(16px + min(420px, 100vh - 160px) - 44px)}'
 				. '}';
 		}
 		echo '<style>' . $css . '</style>' . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
