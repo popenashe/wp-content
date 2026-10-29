@@ -710,3 +710,129 @@ function ministry_format_date( $mysql ) {
 	}
 	return date_i18n( 'j F Y', $ts );
 }
+
+/**
+ * Designed public URL for a desk/wp-admin Preview, or an empty string.
+ *
+ * @param WP_Post $post Record.
+ */
+function ministry_public_record_url( $post ) {
+	if ( ! $post instanceof WP_Post ) {
+		return '';
+	}
+	$site = function_exists( 'ministry_site_url' ) ? 'ministry_site_url' : null;
+	$page = function ( $name ) use ( $site ) {
+		return $site ? $site( $name ) : home_url( 'index' === $name ? '/' : '/' . $name . '/' );
+	};
+	$hash = function ( $name, $anchor ) use ( $page ) {
+		$base = $page( $name );
+		return $anchor ? $base . '#' . rawurlencode( $anchor ) : $base;
+	};
+	switch ( $post->post_type ) {
+		case 'mom_news':
+			return function_exists( 'ministry_front_news_link' ) ? ministry_front_news_link( $post ) : home_url( '/news/' . $post->post_name . '/' );
+		case 'mom_department':
+			$office = '1' === (string) get_post_meta( $post->ID, '_mom_provincial', true ) || '1' === (string) get_post_meta( $post->ID, '_mom_centre', true );
+			if ( $office ) {
+				return $hash( 'offices', ministry_public_anchor( $post ) );
+			}
+			return function_exists( 'ministry_front_department_link' ) ? ministry_front_department_link( $post ) : $page( 'departments' );
+		case 'mom_service':
+			return $hash( 'services', ministry_public_anchor( $post ) );
+		case 'mom_event':
+			return $hash( 'events', ministry_public_anchor( $post ) );
+		case 'mom_album':
+			return $hash( 'gallery', ministry_public_anchor( $post ) );
+		case 'mom_document':
+			return $hash( 'resources', ministry_public_anchor( $post ) );
+		case 'mom_opportunity':
+			$key     = function_exists( 'ministry_front_record_key' ) ? ministry_front_record_key( $post ) : '';
+			$surface = '';
+			if ( $key && function_exists( 'ministry_design_baseline' ) ) {
+				$base = ministry_design_baseline();
+				if ( isset( $base['opportunities'][ $key ]['surface'] ) ) {
+					$surface = (string) $base['opportunities'][ $key ]['surface'];
+				}
+			}
+			return $hash( 'home' === $surface ? 'index' : 'invest', ministry_public_anchor( $post ) );
+		case 'mom_faq':
+			return $hash( 'faq', ministry_public_anchor( $post ) );
+		case 'mom_banner':
+		case 'mom_media':
+			return 'mom_banner' === $post->post_type ? $page( 'index' ) : $page( 'gallery' );
+		case 'page':
+			return ministry_public_wp_page_url( $post );
+	}
+	return '';
+}
+
+/**
+ * Fragment used on listing pages.
+ *
+ * @param WP_Post $post Record.
+ */
+function ministry_public_anchor( $post ) {
+	if ( ! $post instanceof WP_Post ) {
+		return '';
+	}
+	if ( 'mom_department' === $post->post_type ) {
+		$office = '1' === (string) get_post_meta( $post->ID, '_mom_provincial', true ) || '1' === (string) get_post_meta( $post->ID, '_mom_centre', true );
+		if ( $office ) {
+			$short = preg_replace( '/\s+(Provincial Mining Office|Mining Office)$/i', '', (string) $post->post_title );
+			$slug  = sanitize_title( is_string( $short ) && '' !== $short ? $short : (string) $post->post_title );
+			if ( $slug ) {
+				return $slug;
+			}
+		}
+	}
+	if ( in_array( $post->post_type, array( 'mom_opportunity', 'mom_faq', 'mom_event', 'mom_service', 'mom_document' ), true ) ) {
+		$slug = sanitize_title( $post->post_title );
+		if ( $slug ) {
+			return $slug;
+		}
+	}
+	if ( $post->post_name ) {
+		return $post->post_name;
+	}
+	return sanitize_title( $post->post_title );
+}
+
+/**
+ * Designed URL for a WordPress page that owns a public section.
+ *
+ * @param WP_Post $post Page.
+ */
+function ministry_public_wp_page_url( $post ) {
+	$slug = $post->post_name;
+	$parent = $post->post_parent ? get_post( $post->post_parent ) : null;
+	$path   = ( $parent instanceof WP_Post ) ? $parent->post_name . '/' . $slug : $slug;
+	$map    = array(
+		'home'                      => 'index',
+		'about'                     => 'about',
+		'ministry'                  => 'the-ministry',
+		'entities'                  => 'parastatals',
+		'invest'                    => 'invest',
+		'services'                  => 'services',
+		'contact'                   => 'contact',
+		'faq'                       => 'faq',
+		'resources'                 => 'resources',
+		'news'                      => 'news',
+		'events'                    => 'events',
+		'gallery'                   => 'gallery',
+		'departments'               => 'departments',
+		'offices'                   => 'offices',
+		'how-to-get-a-mining-claim' => 'how-to-get-a-mining-claim',
+		'the-ministry'              => 'the-ministry',
+		'parastatals'               => 'parastatals',
+	);
+	if ( 'structure' === $slug || 'about/structure' === $path ) {
+		return home_url( '/about/#structure' );
+	}
+	if ( isset( $map[ $slug ] ) ) {
+		return function_exists( 'ministry_site_url' ) ? ministry_site_url( $map[ $slug ] ) : home_url( '/' . $map[ $slug ] . '/' );
+	}
+	if ( isset( $map[ $path ] ) ) {
+		return function_exists( 'ministry_site_url' ) ? ministry_site_url( $map[ $path ] ) : home_url( '/' . $map[ $path ] . '/' );
+	}
+	return '';
+}

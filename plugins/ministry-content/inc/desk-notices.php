@@ -181,32 +181,40 @@ function ministry_desk_publish_card( $post, $note ) {
  * @param WP_Post $post Record.
  */
 function ministry_desk_preview_url( $post ) {
-	if ( ! $post instanceof WP_Post ) {
-		return home_url( '/' );
+	$url = function_exists( 'ministry_public_record_url' ) ? ministry_public_record_url( $post ) : '';
+	if ( $url ) {
+		return $url;
 	}
-	if ( 'mom_department' === $post->post_type ) {
-		$office = '1' === (string) get_post_meta( $post->ID, '_mom_provincial', true ) || '1' === (string) get_post_meta( $post->ID, '_mom_centre', true );
-		if ( $office ) {
-			$anchor = $post->post_name ? $post->post_name : sanitize_title( $post->post_title );
-			return trailingslashit( ministry_site_url( 'offices' ) ) . '#' . rawurlencode( $anchor );
-		}
-		if ( function_exists( 'ministry_front_department_link' ) ) {
-			return ministry_front_department_link( $post );
-		}
-		return ministry_site_url( 'departments' );
-	}
-	if ( 'mom_service' === $post->post_type ) {
-		return trailingslashit( ministry_site_url( 'services' ) ) . $post->post_name . '/';
-	}
-	if ( 'mom_event' === $post->post_type ) {
-		return ministry_site_url( 'events' );
-	}
-	if ( 'mom_album' === $post->post_type ) {
-		return ministry_site_url( 'gallery' );
-	}
-	$link = get_permalink( $post );
-	return $link ? $link : home_url( '/' );
+	return home_url( '/' );
 }
+
+/**
+ * Ghost Preview button for desk headers and side cards.
+ *
+ * @param string $url Public URL.
+ */
+function ministry_desk_preview_action( $url ) {
+	if ( ! $url ) {
+		return '';
+	}
+	return '<a class="mom-btn mom-btn-ghost" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">' . ministry_desk_icon( 'eye' ) . ' Preview</a>';
+}
+
+/**
+ * Point WordPress Preview / View links at the designed public page.
+ *
+ * @param string       $link Permalink.
+ * @param WP_Post|int  $post Post.
+ */
+function ministry_desk_filter_preview_link( $link, $post ) {
+	$post = $post instanceof WP_Post ? $post : get_post( $post );
+	$url  = ministry_public_record_url( $post );
+	return $url ? $url : $link;
+}
+
+add_filter( 'preview_post_link', 'ministry_desk_filter_preview_link', 10, 2 );
+add_filter( 'post_type_link', 'ministry_desk_filter_preview_link', 10, 2 );
+add_filter( 'page_link', 'ministry_desk_filter_preview_link', 10, 2 );
 
 /**
  * @param int    $post_id Post ID.
@@ -669,7 +677,7 @@ function ministry_desk_screen_notices() {
 		if ( '1' === get_post_meta( $post->ID, '_mom_banner', true ) ) {
 			echo '<div class="mom-home-flag">Homepage banner</div>';
 		}
-		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-notices', $edit ) ) . '">Edit</a> · <a href="' . esc_url( ministry_desk_preview_url( $post ) ) . '">Preview</a> · <a href="' . esc_url( ministry_desk_url( 'mom-notices', array( 'view' => 'translate', 'id' => $post->ID, 'lang' => 'sn' ) ) ) . '">Translate</a>';
+		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-notices', $edit ) ) . '">Edit</a> · <a href="' . esc_url( ministry_desk_preview_url( $post ) ) . '" target="_blank" rel="noopener">Preview</a> · <a href="' . esc_url( ministry_desk_url( 'mom-notices', array( 'view' => 'translate', 'id' => $post->ID, 'lang' => 'sn' ) ) ) . '">Translate</a>';
 		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-notices' ) );
 		echo '</div></td>';
 		echo '<td>';

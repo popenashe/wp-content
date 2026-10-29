@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_action( 'template_redirect', 'ministry_front_copy_routes', 0 );
 
 /**
- * Legal, sitemap, and organogram pages.
+ * Legal and sitemap pages. Old /about/structure/ URLs go to About the ministry.
  */
 function ministry_front_copy_routes() {
 	if ( ! function_exists( 'ministry_site_routes' ) || is_admin() ) {
@@ -20,14 +20,17 @@ function ministry_front_copy_routes() {
 	}
 	global $wp;
 	$path = trim( (string) $wp->request, '/' );
+	if ( 'about/structure' === $path ) {
+		wp_safe_redirect( home_url( '/about/#structure' ), 301 );
+		exit;
+	}
 	$map  = array(
-		'privacy'         => 'privacy',
-		'accessibility'   => 'accessibility',
-		'information'     => 'information',
-		'terms'           => 'terms',
-		'verify'          => 'verify',
-		'sitemap'         => 'sitemap',
-		'about/structure' => 'structure',
+		'privacy'       => 'privacy',
+		'accessibility' => 'accessibility',
+		'information'   => 'information',
+		'terms'         => 'terms',
+		'verify'        => 'verify',
+		'sitemap'       => 'sitemap',
 	);
 	if ( isset( $map[ $path ] ) ) {
 		ministry_front_output_copy_page( $map[ $path ] );
@@ -51,8 +54,6 @@ function ministry_front_output_copy_page( $key ) {
 	$inner .= '</div></section><section class="section"><div class="wrap">';
 	if ( 'sitemap' === $key ) {
 		$inner .= ministry_front_sitemap_html();
-	} elseif ( 'structure' === $key ) {
-		$inner .= ministry_front_organogram_html();
 	} elseif ( $copy['notice'] ) {
 		$inner .= wp_kses_post( wpautop( $copy['notice'] ) );
 	} else {
@@ -82,6 +83,7 @@ function ministry_front_bind_more( $name, $body ) {
 	$body = ministry_front_entities_more( $body, $name );
 	$body = ministry_front_offices_more( $body, $name );
 	$body = ministry_front_services_more( $body, $name );
+	$body = ministry_front_about_organogram( $body, $name );
 	return $body;
 }
 
@@ -468,7 +470,8 @@ function ministry_front_contact_row( $post, $link ) {
 	$summary = (string) get_post_meta( $post->ID, '_mom_summary', true );
 	$address = ministry_front_meta_text( $post->ID, '_mom_address' );
 	$phone   = ministry_front_meta_text( $post->ID, '_mom_phone' );
-	$cell    = $link ? '<a href="' . esc_url( ministry_site_url( 'offices' ) . '#' . $post->post_name ) . '"><strong>' . esc_html( $title ) . '</strong></a>' : '<strong>' . esc_html( $title ) . '</strong>';
+	$anchor  = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
+	$cell    = $link ? '<a href="' . esc_url( ministry_site_url( 'offices' ) . '#' . $anchor ) . '"><strong>' . esc_html( $title ) . '</strong></a>' : '<strong>' . esc_html( $title ) . '</strong>';
 	if ( $summary ) {
 		$cell .= '<br><span class="small muted">' . esc_html( $summary ) . '</span>';
 	}
@@ -558,6 +561,15 @@ function ministry_front_leaders_more( $body, $name ) {
  * @param array<string, mixed> $now    Person.
  */
 function ministry_front_leader_fields( $region, $now ) {
+	$anchor = sanitize_title( isset( $now['name'] ) ? (string) $now['name'] : '' );
+	if ( $anchor ) {
+		if ( preg_match( '/^(\s*)<article\b[^>]*\bid="/i', $region ) ) {
+			$updated = preg_replace( '/^(\s*)<article\b([^>]*\bid=")[^"]*(")/i', '$1<article$2' . esc_attr( $anchor ) . '$3', $region, 1 );
+		} else {
+			$updated = preg_replace( '/^(\s*)<article\b/i', '$1<article id="' . esc_attr( $anchor ) . '"', $region, 1 );
+		}
+		$region = is_string( $updated ) ? $updated : $region;
+	}
 	if ( ! empty( $now['acting'] ) && '1' === (string) $now['acting'] && ! str_contains( $region, 'Acting ' ) ) {
 		$region = preg_replace( '#(<p class="eyebrow"[^>]*>)([^<]+)#', '$1Acting $2', $region, 1 );
 	}
@@ -776,6 +788,33 @@ function ministry_front_offices_more( $body, $name ) {
 			$body = ministry_front_insert_after_last_article( $body, $class, $extra );
 		}
 	}
+	return ministry_front_stamp_office_ids( $body );
+}
+
+/**
+ * Give existing office cards the same ids desk Preview uses.
+ *
+ * @param string $body Markup.
+ */
+function ministry_front_stamp_office_ids( $body ) {
+	foreach ( array( 'centre' => 'ho-card', 'province' => 'prov-card' ) as $kind => $class ) {
+		foreach ( ministry_posts( 'mom_department', ministry_structure_query( $kind ) ) as $post ) {
+			$anchor = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
+			if ( ! $anchor || str_contains( $body, 'id="' . $anchor . '"' ) ) {
+				continue;
+			}
+			$needle = preg_quote( preg_replace( '/\s+(Provincial Mining Office|Mining Office)$/i', '', $post->post_title ), '#' );
+			$updated = preg_replace(
+				'#(<article class="' . preg_quote( $class, '#' ) . '")(?![^>]*\bid=)([^>]*>[\s\S]{0,900}' . $needle . ')#',
+				'$1 id="' . esc_attr( $anchor ) . '"$2',
+				$body,
+				1
+			);
+			if ( is_string( $updated ) ) {
+				$body = $updated;
+			}
+		}
+	}
 	return $body;
 }
 
@@ -814,10 +853,11 @@ function ministry_front_office_inject( $post, $kind ) {
 	$email   = ministry_front_meta_text( $post->ID, '_mom_email' );
 	$town    = ministry_front_meta_text( $post->ID, '_mom_town' );
 	$head    = (string) get_post_meta( $post->ID, '_mom_contact_name', true );
+	$anchor = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
 	if ( 'centre' === $kind ) {
-		return '<article class="ho-card"><div class="map-ph"><span class="pin">' . ministry_front_pin_svg() . '</span><b>' . esc_html( $title ) . '</b></div><div class="card-body"><h3>' . esc_html( $title ) . '</h3><p class="small muted" style="margin:0">' . esc_html( $summary ) . '</p><div class="row">' . ministry_front_pin_svg() . '<span>' . esc_html( $address ) . '</span></div><div class="row">' . ministry_front_pin_svg() . '<span>' . esc_html( $phone ) . '</span></div><div class="row">' . ministry_front_pin_svg() . '<span>' . esc_html( $email ) . '</span></div></div></article>';
+		return '<article class="ho-card" id="' . esc_attr( $anchor ) . '"><div class="map-ph"><span class="pin">' . ministry_front_pin_svg() . '</span><b>' . esc_html( $title ) . '</b></div><div class="card-body"><h3>' . esc_html( $title ) . '</h3><p class="small muted" style="margin:0">' . esc_html( $summary ) . '</p><div class="row">' . ministry_front_pin_svg() . '<span>' . esc_html( $address ) . '</span></div><div class="row">' . ministry_front_pin_svg() . '<span>' . esc_html( $phone ) . '</span></div><div class="row">' . ministry_front_pin_svg() . '<span>' . esc_html( $email ) . '</span></div></div></article>';
 	}
-	return '<article class="prov-card" id="' . esc_attr( $post->post_name ) . '"><div class="head"><div><h3>' . esc_html( $title ) . '</h3><span class="small muted">' . esc_html( $town ) . '</span></div></div><div class="pmd"><small>Provincial Mining Director</small>' . ( $head ? '<strong>' . esc_html( $head ) . '</strong>' : '<span class="tbc-tag">Director TBC</span>' ) . '</div><div class="row" style="display:flex;gap:8px">' . ministry_front_pin_svg() . '<span>' . esc_html( $address ) . '</span></div><div class="row" style="display:flex;gap:8px">' . ministry_front_pin_svg() . '<span>' . esc_html( $phone ) . '</span></div><div class="row" style="display:flex;gap:8px">' . ministry_front_pin_svg() . '<span>' . esc_html( $email ) . '</span></div></article>';
+	return '<article class="prov-card" id="' . esc_attr( $anchor ) . '"><div class="head"><div><h3>' . esc_html( $title ) . '</h3><span class="small muted">' . esc_html( $town ) . '</span></div></div><div class="pmd"><small>Provincial Mining Director</small>' . ( $head ? '<strong>' . esc_html( $head ) . '</strong>' : '<span class="tbc-tag">Director TBC</span>' ) . '</div><div class="row" style="display:flex;gap:8px">' . ministry_front_pin_svg() . '<span>' . esc_html( $address ) . '</span></div><div class="row" style="display:flex;gap:8px">' . ministry_front_pin_svg() . '<span>' . esc_html( $phone ) . '</span></div><div class="row" style="display:flex;gap:8px">' . ministry_front_pin_svg() . '<span>' . esc_html( $email ) . '</span></div></article>';
 }
 
 /**
@@ -922,7 +962,37 @@ function ministry_front_service_card_html( $post, $region = '' ) {
 	if ( $cat ) {
 		$top = preg_replace( '#(<span class="tag[^"]*">)[^<]*#', '$1' . esc_html( $cat ), $top, 1 );
 	}
-	return '<article class="svc" tabindex="0">' . $top . '<h3>' . esc_html( $post->post_title ) . '</h3><p>' . esc_html( $post->post_excerpt ) . '</p><span class="svc-more">View details</span><div class="svc-detail" aria-hidden="true">' . ministry_front_service_detail_html( $post ) . '</div></article>';
+	$id = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
+	return '<article class="svc" id="' . esc_attr( $id ) . '" tabindex="0">' . $top . '<h3>' . esc_html( $post->post_title ) . '</h3><p>' . esc_html( $post->post_excerpt ) . '</p><span class="svc-more">View details</span><div class="svc-detail" aria-hidden="true">' . ministry_front_service_detail_html( $post ) . '</div></article>';
+}
+
+/**
+ * Fill the About the ministry organogram from settings.
+ */
+function ministry_front_about_organogram( $body, $name ) {
+	if ( 'about' !== $name ) {
+		return $body;
+	}
+	$chart = ministry_front_organogram_html();
+	if ( str_contains( $body, 'class="org-chart"' ) ) {
+		$updated = preg_replace( '#<div class="org-chart"[^>]*>.*?</div>#s', $chart, $body, 1 );
+		return is_string( $updated ) ? $updated : $body;
+	}
+	$section  = '<section class="section" id="structure"><div class="wrap">';
+	$section .= '<p class="eyebrow">Organisation</p>';
+	$section .= '<h2>Organisational structure</h2>';
+	$section .= '<p class="muted" style="max-width:42rem">How the Ministry is organised, from the Minister through the Permanent Secretary to head-office departments and provincial mining offices.</p>';
+	$section .= $chart;
+	$section .= '</div></section>';
+	if ( ! str_contains( $body, 'href="#structure"' ) ) {
+		$body = str_replace(
+			'<a class="pill" href="#framework">',
+			'<a class="pill" href="#structure">Organisational structure</a><a class="pill" href="#framework">',
+			$body
+		);
+	}
+	$updated = preg_replace( '#<section class="section"[^>]*>\s*<div class="wrap grid g2"#', $section . '$0', $body, 1 );
+	return is_string( $updated ) ? $updated : $body;
 }
 
 /**
@@ -930,7 +1000,7 @@ function ministry_front_service_card_html( $post, $region = '' ) {
  */
 function ministry_front_organogram_html() {
 	$rows = isset( ministry_settings()['organogram'] ) && is_array( ministry_settings()['organogram'] ) ? ministry_settings()['organogram'] : array();
-	$html = '<div class="org-chart">';
+	$html = '<div class="org-chart" style="margin-top:24px">';
 	foreach ( $rows as $row ) {
 		if ( ! is_array( $row ) || empty( $row['title'] ) ) {
 			continue;
@@ -958,9 +1028,10 @@ function ministry_front_sitemap_html() {
 		$label = ucwords( str_replace( '-', ' ', $name ) );
 		$html .= '<li><a href="' . esc_url( ministry_site_url( $name ) ) . '">' . esc_html( $label ) . '</a></li>';
 	}
-	foreach ( array( 'privacy' => 'Privacy & data protection', 'accessibility' => 'Accessibility statement', 'information' => 'Access to information', 'terms' => 'Terms of use', 'verify' => 'How to verify official sites', 'about/structure' => 'Organisational structure' ) as $path => $label ) {
+	foreach ( array( 'privacy' => 'Privacy & data protection', 'accessibility' => 'Accessibility statement', 'information' => 'Access to information', 'terms' => 'Terms of use', 'verify' => 'How to verify official sites' ) as $path => $label ) {
 		$html .= '<li><a href="' . esc_url( home_url( '/' . $path . '/' ) ) . '">' . esc_html( $label ) . '</a></li>';
 	}
+	$html .= '<li><a href="' . esc_url( home_url( '/about/#structure' ) ) . '">Organisational structure</a></li>';
 	$html .= '</ul>';
 	return $html;
 }

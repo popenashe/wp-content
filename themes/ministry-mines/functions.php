@@ -398,8 +398,18 @@ add_action( 'template_redirect', 'ministry_site_route', 1 );
  */
 function ministry_site_route() {
 	global $wp;
-	if ( is_feed() || is_robots() || is_trackback() || is_preview() || is_search() ) {
+	if ( is_feed() || is_robots() || is_trackback() || is_search() ) {
 		return;
+	}
+	if ( is_preview() && function_exists( 'ministry_public_record_url' ) ) {
+		$post = get_queried_object();
+		if ( $post instanceof WP_Post ) {
+			$url = ministry_public_record_url( $post );
+			if ( $url ) {
+				wp_safe_redirect( $url, 302 );
+				exit;
+			}
+		}
 	}
 	$path   = trim( (string) $wp->request, '/' );
 	$legacy = array(
@@ -419,6 +429,16 @@ function ministry_site_route() {
 		ministry_site_output( $doc['head'], $doc['body'] );
 		exit;
 	}
+	if ( is_singular() && function_exists( 'ministry_public_record_url' ) ) {
+		$post = get_queried_object();
+		if ( $post instanceof WP_Post ) {
+			$url = ministry_public_record_url( $post );
+			if ( $url ) {
+				wp_safe_redirect( $url, 301 );
+				exit;
+			}
+		}
+	}
 	$listings = array(
 		'mom_news'        => 'news',
 		'mom_department'  => 'departments',
@@ -426,9 +446,13 @@ function ministry_site_route() {
 		'mom_document'    => 'resources',
 		'mom_opportunity' => 'invest',
 		'mom_media'       => 'gallery',
+		'mom_album'       => 'gallery',
+		'mom_service'     => 'services',
+		'mom_faq'         => 'faq',
+		'mom_banner'      => 'index',
 	);
 	foreach ( $listings as $type => $name ) {
-		if ( is_singular( $type ) || is_post_type_archive( $type ) ) {
+		if ( is_post_type_archive( $type ) ) {
 			wp_safe_redirect( ministry_site_url( $name ) );
 			exit;
 		}

@@ -12,6 +12,38 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_action( 'template_redirect', 'ministry_front_dynamic', 0 );
 
 /**
+ * Add an id so desk Preview hashes land on this card.
+ *
+ * @param string  $html Markup.
+ * @param WP_Post $post Record.
+ */
+function ministry_front_with_anchor( $html, $post ) {
+	$anchor = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
+	if ( ! $anchor ) {
+		return $html;
+	}
+	$safe = esc_attr( $anchor );
+	if ( preg_match( '/^(\s*)<(article|details|section|a|tr)\b[^>]*\bid="/i', $html ) ) {
+		$updated = preg_replace( '/^(\s*)<(article|details|section|a|tr)\b([^>]*\bid=")[^"]*(")/i', '$1<$2$3' . $safe . '$4', $html, 1 );
+	} else {
+		$updated = preg_replace( '/^(\s*)<(article|details|section|a|tr)\b(?![^>]*\bid=)/i', '$1<$2 id="' . $safe . '"', $html, 1 );
+	}
+	return is_string( $updated ) ? $updated : $html;
+}
+
+/**
+ * Statuses a logged-in editor may preview on the public site.
+ *
+ * @return string[]
+ */
+function ministry_front_preview_statuses() {
+	if ( is_user_logged_in() && current_user_can( 'edit_posts' ) ) {
+		return array( 'publish', 'draft', 'pending', 'private', 'future' );
+	}
+	return array( 'publish' );
+}
+
+/**
  * Pages for records that do not have their own design file yet.
  */
 function ministry_front_dynamic() {
@@ -79,6 +111,8 @@ function ministry_front_bind( $name, $body ) {
 		$body = ministry_front_banners( $body, $name );
 		$body = ministry_front_sort_lists( $body, $name );
 		$body = ministry_front_bind_more( $name, $body );
+	} else {
+		$body = ministry_front_about_organogram( $body, $name );
 	}
 	if ( 'offices' === $name ) {
 		$body = ministry_front_office_maps( $body );
@@ -1003,7 +1037,7 @@ function ministry_front_documents( $body, $name ) {
 				if ( $url && $file && ! str_contains( $url, $file ) ) {
 					$region = preg_replace( '#href="[^"]*' . preg_quote( $file, '#' ) . '"#', 'href="' . esc_url( $url ) . '"', $region );
 				}
-				return $region;
+				return ministry_front_with_anchor( $region, $post );
 			}
 		);
 	}
@@ -1011,8 +1045,34 @@ function ministry_front_documents( $body, $name ) {
 		$url  = ministry_document_url( $post->ID );
 		$link = $url ? '<a class="doc-title" href="' . esc_url( $url ) . '">' . esc_html( $post->post_title ) . '</a>' : '<span class="doc-title">' . esc_html( $post->post_title ) . '</span>';
 		$file = $url ? '<a href="' . esc_url( $url ) . '" download><strong>Download</strong></a>' : '<span class="await">Awaiting file</span>';
-		$row  = '<tr><td><span class="fmt">PDF</span></td><td>' . $link . '</td><td><span class="tag grey">' . esc_html( ministry_document_category_label( (string) get_post_meta( $post->ID, '_mom_category', true ) ) ) . '</span></td><td class="small">' . esc_html( $post->post_excerpt ) . '</td><td style="text-align:right">' . $file . '</td></tr>';
+		$anchor = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
+		$row    = '<tr id="' . esc_attr( $anchor ) . '"><td><span class="fmt">PDF</span></td><td>' . $link . '</td><td><span class="tag grey">' . esc_html( ministry_document_category_label( (string) get_post_meta( $post->ID, '_mom_category', true ) ) ) . '</span></td><td class="small">' . esc_html( $post->post_excerpt ) . '</td><td style="text-align:right">' . $file . '</td></tr>';
 		$body = str_replace( '</tbody>', $row . '</tbody>', $body );
+	}
+	return ministry_front_stamp_document_ids( $body );
+}
+
+/**
+ * Give staff-form links the same ids desk Preview uses.
+ *
+ * @param string $body Markup.
+ */
+function ministry_front_stamp_document_ids( $body ) {
+	foreach ( ministry_posts( 'mom_document' ) as $post ) {
+		$anchor = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
+		if ( ! $anchor || str_contains( $body, 'id="' . $anchor . '"' ) ) {
+			continue;
+		}
+		$needle  = preg_quote( $post->post_title, '#' );
+		$updated = preg_replace(
+			'#(<(?:tr|a)\b)(?![^>]*\bid=)([^>]*>[\s\S]{0,500}' . $needle . ')#',
+			'$1 id="' . esc_attr( $anchor ) . '"$2',
+			$body,
+			1
+		);
+		if ( is_string( $updated ) ) {
+			$body = $updated;
+		}
 	}
 	return $body;
 }
@@ -1046,15 +1106,24 @@ function ministry_front_faqs( $body, $name ) {
 			function ( $region ) use ( $source, $post ) {
 				$region = ministry_front_text( $region, (string) $source['question'], $post->post_title, 2 );
 				$region = ministry_front_text( $region, (string) $source['answer'], wp_strip_all_tags( $post->post_content ), 2 );
-				return $region;
+				return ministry_front_with_anchor( $region, $post );
 			}
 		);
 	}
-	foreach ( ministry_front_extra_posts( 'mom_faq' ) as $post ) {
-		$card = '<details class="faq"><summary>' . esc_html( $post->post_title ) . '<span class="pm" aria-hidden="true">+</span></summary><div class="ans"><p>' . esc_html( wp_strip_all_tags( $post->post_content ) ) . '</p></div></details>';
-		$body = preg_replace( '#(<div>\s*<label class="lbl" for="faq-search">)#', $card . '$1', $body, 1 );
-		if ( ! str_contains( $body, esc_html( $post->post_title ) ) ) {
-			$body = str_replace( '<aside class="aside-stack">', $card . '<aside class="aside-stack">', $body );
+	$extra = '';
+	foreach ( ministry_posts( 'mom_faq', array( 'post_status' => ministry_front_preview_statuses() ) ) as $post ) {
+		if ( str_contains( $body, $post->post_title ) || str_contains( $body, esc_html( $post->post_title ) ) ) {
+			continue;
+		}
+		$anchor = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
+		$extra .= '<details class="faq" id="' . esc_attr( $anchor ) . '"><summary>' . esc_html( $post->post_title ) . '<span class="pm" aria-hidden="true">+</span></summary><div class="ans"><p>' . esc_html( wp_strip_all_tags( $post->post_content ) ) . '</p></div></details>';
+	}
+	if ( $extra ) {
+		$pos = strrpos( $body, '</details>' );
+		if ( false !== $pos ) {
+			$body = substr( $body, 0, $pos + 10 ) . $extra . substr( $body, $pos + 10 );
+		} else {
+			$body = str_replace( '<aside class="aside-stack">', $extra . '<aside class="aside-stack">', $body );
 		}
 	}
 	return $body;
@@ -1097,13 +1166,14 @@ function ministry_front_events( $body, $name ) {
 				}
 				$reg = ministry_event_register_url( $post );
 				$region = preg_replace( '#(<a class="btn btn-navy btn-sm" href=")[^"]+#', '$1' . esc_url( $reg ), $region, 1 );
-				return $region;
+				return ministry_front_with_anchor( $region, $post );
 			}
 		);
 	}
 	foreach ( ministry_front_extra_posts( 'mom_event' ) as $post ) {
 		$when = (string) get_post_meta( $post->ID, '_mom_starts_at', true );
-		$card = '<article class="event-card" data-cat="upcoming"><div class="card-body"><p class="eyebrow">' . esc_html( (string) get_post_meta( $post->ID, '_mom_category', true ) ) . '</p><h3>' . esc_html( $post->post_title ) . '</h3><p class="small muted">' . esc_html( $post->post_excerpt ) . '</p><p class="small">' . esc_html( trim( ministry_format_date( $when ) . ' · ' . (string) get_post_meta( $post->ID, '_mom_location', true ), ' ·' ) ) . '</p><a class="btn btn-navy btn-sm" href="' . esc_url( ministry_event_register_url( $post ) ) . '">Register</a></div></article>';
+		$anchor = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
+		$card   = '<article class="event-card" id="' . esc_attr( $anchor ) . '" data-cat="upcoming"><div class="card-body"><p class="eyebrow">' . esc_html( (string) get_post_meta( $post->ID, '_mom_category', true ) ) . '</p><h3>' . esc_html( $post->post_title ) . '</h3><p class="small muted">' . esc_html( $post->post_excerpt ) . '</p><p class="small">' . esc_html( trim( ministry_format_date( $when ) . ' · ' . (string) get_post_meta( $post->ID, '_mom_location', true ), ' ·' ) ) . '</p><a class="btn btn-navy btn-sm" href="' . esc_url( ministry_event_register_url( $post ) ) . '">Register</a></div></article>';
 		$body = str_replace( '<aside class="aside-stack">', $card . '<aside class="aside-stack">', $body );
 	}
 	return $body;
@@ -1235,17 +1305,50 @@ function ministry_front_opportunities( $body, $name ) {
 					$region = ministry_front_text( $region, (string) $source['excerpt'], $post->post_excerpt, 2 );
 				}
 				$region = ministry_front_text( $region, (string) $source['mineral'], (string) get_post_meta( $post->ID, '_mom_mineral', true ), 2 );
-				return $region;
+				return ministry_front_with_anchor( $region, $post );
 			}
 		);
 	}
 	if ( 'invest' === $name ) {
 		foreach ( ministry_front_extra_posts( 'mom_opportunity' ) as $post ) {
-			$card = '<article class="area"><div class="card-body"><p class="meta"><span class="tag gold">' . esc_html( (string) get_post_meta( $post->ID, '_mom_mineral', true ) ) . '</span> ' . esc_html( (string) get_post_meta( $post->ID, '_mom_region', true ) ) . '</p><h3>' . esc_html( $post->post_title ) . '</h3><p class="muted small">' . esc_html( $post->post_excerpt ) . '</p><a class="link-arrow" href="' . esc_url( ministry_site_url( 'contact' ) ) . '#enquiry">Register interest</a></div></article>';
+			$anchor = function_exists( 'ministry_public_anchor' ) ? ministry_public_anchor( $post ) : $post->post_name;
+			$card   = '<article class="area" id="' . esc_attr( $anchor ) . '"><div class="card-body"><p class="meta"><span class="tag gold">' . esc_html( (string) get_post_meta( $post->ID, '_mom_mineral', true ) ) . '</span> ' . esc_html( (string) get_post_meta( $post->ID, '_mom_region', true ) ) . '</p><h3>' . esc_html( $post->post_title ) . '</h3><p class="muted small">' . esc_html( $post->post_excerpt ) . '</p><a class="link-arrow" href="' . esc_url( ministry_site_url( 'contact' ) ) . '#enquiry">Register interest</a></div></article>';
 			$body = str_replace( '<div class="promo"', $card . '<div class="promo"', $body );
 		}
 	}
-	return $body;
+	return ministry_front_stamp_opportunity_ids( $body );
+}
+
+/**
+ * Give investment cards the same ids desk Preview uses.
+ *
+ * @param string $body Markup.
+ */
+function ministry_front_stamp_opportunity_ids( $body ) {
+	$updated = preg_replace_callback(
+		'#<article\b([^>]*)>(.*?)</article>#s',
+		function ( $match ) {
+			if ( ! preg_match( '/\bclass="[^"]*\barea\b/', $match[1] ) ) {
+				return $match[0];
+			}
+			if ( ! preg_match( '#<h3>(.*?)</h3>#s', $match[2], $heading ) ) {
+				return $match[0];
+			}
+			$anchor = sanitize_title( wp_strip_all_tags( $heading[1] ) );
+			if ( ! $anchor ) {
+				return $match[0];
+			}
+			$attrs = $match[1];
+			if ( preg_match( '/\bid="/', $attrs ) ) {
+				$attrs = preg_replace( '/\bid="[^"]*"/', 'id="' . esc_attr( $anchor ) . '"', $attrs, 1 );
+			} else {
+				$attrs = ' id="' . esc_attr( $anchor ) . '"' . $attrs;
+			}
+			return '<article' . $attrs . '>' . $match[2] . '</article>';
+		},
+		$body
+	);
+	return is_string( $updated ) ? $updated : $body;
 }
 
 /**
@@ -2289,7 +2392,7 @@ function ministry_front_dynamic_news( $slug ) {
 		array(
 			'name'           => $slug,
 			'post_type'      => 'mom_news',
-			'post_status'    => 'publish',
+			'post_status'    => ministry_front_preview_statuses(),
 			'posts_per_page' => 1,
 		)
 	);
@@ -2348,7 +2451,7 @@ function ministry_front_dynamic_department( $slug ) {
 		array(
 			'name'           => $slug,
 			'post_type'      => 'mom_department',
-			'post_status'    => 'publish',
+			'post_status'    => ministry_front_preview_statuses(),
 			'posts_per_page' => 1,
 		)
 	);

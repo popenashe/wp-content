@@ -43,7 +43,7 @@ function ministry_desk_screen_documents() {
 		$file = (int) get_post_meta( $item->ID, '_mom_file_id', true );
 		$status = $missing ? array( 'Awaiting file', 'red' ) : ministry_desk_status_label( $item );
 		echo '<tr><td><a class="title" href="' . esc_url( ministry_desk_url( 'mom-documents', array( 'id' => $item->ID ) ) ) . '">' . esc_html( $item->post_title ) . '</a>';
-		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-documents', array( 'id' => $item->ID ) ) ) . '">Edit</a>';
+		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-documents', array( 'id' => $item->ID ) ) ) . '">Edit</a> · <a href="' . esc_url( ministry_desk_preview_url( $item ) ) . '" target="_blank" rel="noopener">Preview</a>';
 		ministry_desk_delete_link( $item->ID, ministry_desk_url( 'mom-documents' ) );
 		echo '</div>';
 		if ( '1' === get_post_meta( $item->ID, '_mom_draft_label', true ) ) {
@@ -66,7 +66,7 @@ function ministry_desk_screen_documents() {
 	ministry_desk_field( 'Category', 'category', $post ? (string) get_post_meta( $id, '_mom_category', true ) : 'guidelines', array( 'type' => 'select', 'required' => true, 'options' => $cats ) );
 	ministry_desk_field( 'Version / date', 'version', $post ? $post->post_excerpt : '' );
 	echo '<label class="mom-toggle"><input type="checkbox" name="is_draft" value="1" ' . checked( $post && '1' === get_post_meta( $id, '_mom_draft_label', true ), true, false ) . '> This is a draft — label it “Draft — subject to change”</label>';
-	echo '<p class="mom-actions" style="margin-top:12px"><button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" name="intent" value="' . ( ministry_desk_can_publish() ? 'publish' : 'pending' ) . '">' . ( ministry_desk_can_publish() ? 'Publish' : 'Submit for review' ) . '</button>';
+	echo '<p class="mom-actions" style="margin-top:12px">' . ( $post ? ministry_desk_preview_action( ministry_desk_preview_url( $post ) ) : '' ) . '<button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" name="intent" value="' . ( ministry_desk_can_publish() ? 'publish' : 'pending' ) . '">' . ( ministry_desk_can_publish() ? 'Publish' : 'Submit for review' ) . '</button>';
 	ministry_desk_delete_button( $post );
 	echo '</p>';
 	echo '<p class="mom-hint">Old versions stay downloadable but point people to the new one.</p></section></form></div></div>';
@@ -92,7 +92,7 @@ function ministry_desk_screen_services() {
 		$data = is_array( $data ) ? $data : array();
 		$status = ministry_desk_status_label( $post );
 		echo '<tr><td><a class="title" href="' . esc_url( ministry_desk_url( 'mom-services', array( 'view' => 'edit', 'id' => $post->ID ) ) ) . '">' . esc_html( $post->post_title ) . '</a>';
-		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-services', array( 'view' => 'edit', 'id' => $post->ID ) ) ) . '">Edit</a>';
+		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-services', array( 'view' => 'edit', 'id' => $post->ID ) ) ) . '">Edit</a> · <a href="' . esc_url( ministry_desk_preview_url( $post ) ) . '" target="_blank" rel="noopener">Preview</a>';
 		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-services' ) );
 		echo '</div></td>';
 		echo '<td>' . esc_html( isset( $data['category'] ) ? (string) $data['category'] : '' ) . '</td>';
@@ -202,7 +202,7 @@ function ministry_desk_screen_faqs() {
 		if ( '' === trim( $post->post_content ) ) {
 			echo '<span class="mom-badge mom-badge-red">Answer missing</span>';
 		}
-		echo '<span class="mom-row-links">';
+		echo '<span class="mom-row-links"><a href="' . esc_url( ministry_desk_preview_url( $post ) ) . '" target="_blank" rel="noopener">Preview</a> · ';
 		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-services', array( 'view' => 'faqs' ) ) );
 		echo '</span></summary>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
@@ -271,7 +271,7 @@ function ministry_desk_screen_events() {
 	foreach ( $posts as $post ) {
 		$status = ministry_desk_status_label( $post );
 		echo '<tr><td><a class="title" href="' . esc_url( ministry_desk_url( 'mom-events', array( 'view' => 'edit', 'id' => $post->ID ) ) ) . '">' . esc_html( $post->post_title ) . '</a>';
-		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-events', array( 'view' => 'edit', 'id' => $post->ID ) ) ) . '">Edit</a>';
+		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-events', array( 'view' => 'edit', 'id' => $post->ID ) ) ) . '">Edit</a> · <a href="' . esc_url( ministry_desk_preview_url( $post ) ) . '" target="_blank" rel="noopener">Preview</a>';
 		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-events' ) );
 		echo '</div></td>';
 		echo '<td>' . esc_html( ministry_desk_date( (string) get_post_meta( $post->ID, '_mom_starts_at', true ) ) ) . '</td>';
@@ -468,7 +468,7 @@ function ministry_desk_screen_albums() {
 		}
 		echo '<h2>' . esc_html( $album->post_title ) . '</h2></a>';
 		echo '<p class="mom-hint">' . esc_html( (string) $count ) . ' photos · ' . esc_html( (string) get_post_meta( $album->ID, '_mom_year', true ) ) . '</p>';
-		echo '<p class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-albums', array( 'view' => 'edit', 'id' => $album->ID ) ) ) . '">Edit</a>';
+		echo '<p class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-albums', array( 'view' => 'edit', 'id' => $album->ID ) ) ) . '">Edit</a> · <a href="' . esc_url( ministry_desk_preview_url( $album ) ) . '" target="_blank" rel="noopener">Preview</a>';
 		ministry_desk_delete_link( $album->ID, ministry_desk_url( 'mom-albums' ), array( 'confirm' => $warn ) );
 		echo '</p></div>';
 	}
@@ -489,7 +489,8 @@ function ministry_desk_screen_album() {
 		}
 	}
 	$warn = $photos ? 'This album has ' . count( $photos ) . ' photo(s). Deleting it keeps those photos as unassigned pictures. Continue?' : 'Delete this album?';
-	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-albums' ) ) . '">Photo albums</a>', $post ? $post->post_title : 'New album', $post ? count( $photos ) . ' photos' . ( $missing ? ' · ' . $missing . ' need alt text before publishing' : '' ) : 'Add photos, then write a short description for each one.', '<button class="mom-btn mom-save-draft" form="mom-desk-form" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" form="mom-desk-form" name="intent" value="publish">Publish</button>' );
+	$album_actions = ( $post ? ministry_desk_preview_action( ministry_desk_preview_url( $post ) ) : '' ) . '<button class="mom-btn mom-save-draft" form="mom-desk-form" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" form="mom-desk-form" name="intent" value="publish">Publish</button>';
+	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-albums' ) ) . '">Photo albums</a>', $post ? $post->post_title : 'New album', $post ? count( $photos ) . ' photos' . ( $missing ? ' · ' . $missing . ' need alt text before publishing' : '' ) : 'Add photos, then write a short description for each one.', $album_actions );
 	ministry_desk_form_open( 'album' );
 	echo '<input type="hidden" name="post_id" value="' . esc_attr( (string) $id ) . '">';
 	echo '<div class="mom-split"><div class="mom-main-col">';
@@ -640,7 +641,11 @@ function ministry_desk_screen_people() {
 			echo '<span class="mom-ph">No photo</span>';
 		}
 		echo '<a class="who" href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => 'person', 'index' => $index ) ) ) . '"><b>' . esc_html( (string) $leader['name'] ) . '</b>' . esc_html( (string) $leader['title'] ) . '</a>';
-		echo '<span class="mom-row-links">';
+		$person_preview = home_url( '/the-ministry/' );
+		if ( ! empty( $leader['name'] ) ) {
+			$person_preview .= '#' . rawurlencode( sanitize_title( (string) $leader['name'] ) );
+		}
+		echo '<span class="mom-row-links"><a href="' . esc_url( $person_preview ) . '" target="_blank" rel="noopener">Preview</a> · ';
 		ministry_desk_delete_link( 0, ministry_desk_url( 'mom-people' ), array( 'leader_index' => $index ) );
 		echo '</span></article>';
 	}
@@ -687,7 +692,7 @@ function ministry_desk_order_table( $heading, $posts, $view, $field ) {
 	foreach ( $posts as $post ) {
 		echo '<tr data-id="' . esc_attr( (string) $post->ID ) . '"><td><span class="grip">⋮⋮</span></td>';
 		echo '<td><a class="title" href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => $view, 'id' => $post->ID ) ) ) . '">' . esc_html( $post->post_title ) . '</a>';
-		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => $view, 'id' => $post->ID ) ) ) . '">Edit</a>';
+		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-people', array( 'view' => $view, 'id' => $post->ID ) ) ) . '">Edit</a> · <a href="' . esc_url( ministry_desk_preview_url( $post ) ) . '" target="_blank" rel="noopener">Preview</a>';
 		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-people', array( 'view' => 'office' === $view ? 'offices' : 'departments' ) ) );
 		echo '</div></td>';
 		$place = (string) get_post_meta( $post->ID, '_mom_location', true );
@@ -765,7 +770,11 @@ function ministry_desk_screen_person() {
 		echo '<p><button class="mom-btn mom-btn-danger" name="form" value="delete" onclick="return confirm(\'Remove this person from the website?\')">Delete</button></p>';
 	}
 	echo '</section>';
-	echo '<section class="mom-side-card"><h2>This person appears on</h2><p><a href="' . esc_url( home_url( '/the-ministry/' ) ) . '">The Ministry</a></p><p><a href="' . esc_url( home_url( '/about/' ) ) . '">About</a></p><p><a href="' . esc_url( home_url( '/contact/' ) ) . '">Contact</a></p></section>';
+	$person_preview = home_url( '/the-ministry/' );
+	if ( ! empty( $leader['name'] ) ) {
+		$person_preview .= '#' . rawurlencode( sanitize_title( (string) $leader['name'] ) );
+	}
+	echo '<section class="mom-side-card"><h2>This person appears on</h2><p><a href="' . esc_url( $person_preview ) . '" target="_blank" rel="noopener">The Ministry</a></p><p><a href="' . esc_url( home_url( '/about/#structure' ) ) . '" target="_blank" rel="noopener">About the ministry</a></p><p><a href="' . esc_url( home_url( '/contact/' ) ) . '" target="_blank" rel="noopener">Contact</a></p>' . ministry_desk_preview_action( $person_preview ) . '</section>';
 	echo '</div></div></form>';
 }
 
@@ -835,7 +844,7 @@ function ministry_desk_screen_structure() {
 	foreach ( ministry_desk_posts( 'mom_department', array( 'posts_per_page' => 200, 'orderby' => 'menu_order', 'order' => 'ASC' ) ) as $post ) {
 		$buckets[ ministry_desk_department_group( $post ) ][] = $post;
 	}
-	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-people' ) ) . '">Leadership</a> / Organisational structure', 'Organisational structure', 'Drag groups and departments to reorder. The chart on About → Structure redraws itself.', '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save changes</button>' );
+	ministry_desk_head( '<a href="' . esc_url( ministry_desk_url( 'mom-people' ) ) . '">Leadership</a> / Organisational structure', 'Organisational structure', 'Drag groups and departments to reorder. The chart on About the ministry redraws itself.', ministry_desk_preview_action( home_url( '/about/#structure' ) ) . '<button class="mom-btn mom-btn-primary" form="mom-desk-form">Save changes</button>' );
 	ministry_desk_form_open( 'structure' );
 	echo '<div class="mom-split"><div class="mom-main-col"><section class="mom-card"><h2>Top of the structure</h2><div class="mom-grid-2">';
 	foreach ( array_slice( $leaders, 0, 4 ) as $leader ) {
@@ -1009,7 +1018,7 @@ function ministry_desk_screen_agencies() {
 		echo '<div class="mom-table-card"><table class="mom-table"><thead><tr><th>Project</th><th>Mineral</th><th>Progress</th><th>Target</th></tr></thead><tbody>';
 		foreach ( $posts as $post ) {
 			echo '<tr><td><a class="title" href="' . esc_url( ministry_desk_url( 'mom-agencies', array( 'view' => 'opportunity', 'id' => $post->ID ) ) ) . '">' . esc_html( $post->post_title ) . '</a>';
-		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-agencies', array( 'view' => 'opportunity', 'id' => $post->ID ) ) ) . '">Edit</a>';
+		echo '<div class="mom-row-links"><a href="' . esc_url( ministry_desk_url( 'mom-agencies', array( 'view' => 'opportunity', 'id' => $post->ID ) ) ) . '">Edit</a> · <a href="' . esc_url( ministry_desk_preview_url( $post ) ) . '" target="_blank" rel="noopener">Preview</a>';
 		ministry_desk_delete_link( $post->ID, ministry_desk_url( 'mom-agencies', array( 'view' => 'opportunities' ) ) );
 		echo '</div></td>';
 			echo '<td>' . esc_html( (string) get_post_meta( $post->ID, '_mom_mineral', true ) ) . '</td>';
@@ -1026,7 +1035,11 @@ function ministry_desk_screen_agencies() {
 			continue;
 		}
 		echo '<div class="mom-person"><a href="' . esc_url( ministry_desk_url( 'mom-agencies', array( 'view' => 'edit', 'index' => $index ) ) ) . '"><span class="mom-avatar">' . esc_html( (string) $entity['acronym'] ) . '</span><span class="who"><b>' . esc_html( (string) $entity['name'] ) . '</b>' . esc_html( (string) $entity['desc'] ) . '</span></a>';
-		echo '<span class="mom-row-links">';
+		$entity_preview = ministry_site_url( 'parastatals' );
+		if ( ! empty( $entity['acronym'] ) ) {
+			$entity_preview .= '#' . rawurlencode( sanitize_title( (string) $entity['acronym'] ) );
+		}
+		echo '<span class="mom-row-links"><a href="' . esc_url( $entity_preview ) . '" target="_blank" rel="noopener">Preview</a> · ';
 		ministry_desk_delete_link( 0, ministry_desk_url( 'mom-agencies' ), array( 'entity_index' => $index ) );
 		echo '</span></div>';
 	}
@@ -1066,6 +1079,11 @@ function ministry_desk_screen_agency() {
 	echo '</div></section><section class="mom-card"><h2>Mandate</h2>';
 	ministry_desk_editor( 'mandate', (string) $entity['desc'] );
 	echo '</section></div><div class="mom-side-col"><section class="mom-side-card"><h2>Publish</h2><div class="mom-note mom-note-gold"><p>Entity details are checked by the Communications Director.</p></div>';
+	$agency_preview = ministry_site_url( 'parastatals' );
+	if ( ! empty( $entity['acronym'] ) ) {
+		$agency_preview .= '#' . rawurlencode( sanitize_title( (string) $entity['acronym'] ) );
+	}
+	echo ministry_desk_preview_action( $agency_preview );
 	echo '<button class="mom-btn mom-btn-primary">Update</button>';
 	if ( $index >= 0 ) {
 		echo '<input type="hidden" name="entity_index" value="' . esc_attr( (string) $index ) . '">';
@@ -1111,7 +1129,7 @@ function ministry_desk_screen_opportunity() {
 	ministry_desk_field( 'Progress %', 'progress', $post ? (string) get_post_meta( $id, '_mom_progress', true ) : '', array( 'type' => 'number' ) );
 	ministry_desk_field( 'Target', 'target', $post ? (string) get_post_meta( $id, '_mom_target', true ) : '' );
 	ministry_desk_field( 'Agency short name', 'entity', $post ? (string) get_post_meta( $id, '_mom_entity', true ) : '' );
-	echo '</div><p class="mom-actions"><button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" name="intent" value="' . ( ministry_desk_can_publish() ? 'publish' : 'pending' ) . '">' . ( ministry_desk_can_publish() ? 'Publish' : 'Submit for review' ) . '</button></p></section></form>';
+	echo '</div><p class="mom-actions">' . ( $post ? ministry_desk_preview_action( ministry_desk_preview_url( $post ) ) : '' ) . '<button class="mom-btn mom-save-draft" name="intent" value="draft">Save draft</button><button class="mom-btn mom-btn-primary" name="intent" value="' . ( ministry_desk_can_publish() ? 'publish' : 'pending' ) . '">' . ( ministry_desk_can_publish() ? 'Publish' : 'Submit for review' ) . '</button></p></section></form>';
 }
 
 /**
