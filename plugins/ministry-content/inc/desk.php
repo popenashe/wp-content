@@ -77,21 +77,11 @@ function ministry_desk_menus() {
 }
 
 /**
- * Desk screens use the navy shell. Other admin screens (Wordfence, Plugins) keep the WordPress menu.
+ * Desk screens use the navy shell. Other admin screens (Plugins, Tools) keep the WordPress menu.
  */
 function ministry_desk_is_desk_screen() {
 	$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
 	return 0 === strpos( $page, 'mom-' );
-}
-
-/**
- * Wordfence dashboard URL when that plugin is loaded, otherwise empty.
- */
-function ministry_desk_wordfence_url() {
-	if ( ! defined( 'WORDFENCE_VERSION' ) ) {
-		return '';
-	}
-	return admin_url( 'admin.php?page=Wordfence' );
 }
 
 /**

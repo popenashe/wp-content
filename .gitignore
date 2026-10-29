@@ -17,6 +17,3 @@ plugins/*
 !plugins/ministry-content/**
 !plugins/ministry-engage/
 !plugins/ministry-engage/**
-!plugins/wordfence/
-!plugins/wordfence/**
-plugins/wordfence/wflogs/

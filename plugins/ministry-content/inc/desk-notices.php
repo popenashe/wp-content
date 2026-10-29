@@ -297,14 +297,7 @@ function ministry_desk_sidebar() {
 	}
 	echo '</nav><p class="mom-side-note">Hidden for staff: Appearance, Plugins, Tools, Comments. Users &amp; Roles: Administrators only.';
 	if ( ministry_desk_can( 'users' ) ) {
-		$wordfence = function_exists( 'ministry_desk_wordfence_url' ) ? ministry_desk_wordfence_url() : '';
-		echo '<br>';
-		if ( $wordfence ) {
-			echo '<a href="' . esc_url( $wordfence ) . '">Wordfence</a> · ';
-		} elseif ( file_exists( WP_PLUGIN_DIR . '/wordfence/wordfence.php' ) ) {
-			echo '<a href="' . esc_url( admin_url( 'plugins.php?s=wordfence&plugin_status=inactive' ) ) . '">Activate Wordfence</a> · ';
-		}
-		echo '<a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Plugins</a> · <a href="' . esc_url( admin_url( 'themes.php' ) ) . '">Appearance</a> · <a href="' . esc_url( admin_url( 'tools.php' ) ) . '">Tools</a>';
+		echo '<br><a href="' . esc_url( admin_url( 'plugins.php' ) ) . '">Plugins</a> · <a href="' . esc_url( admin_url( 'themes.php' ) ) . '">Appearance</a> · <a href="' . esc_url( admin_url( 'tools.php' ) ) . '">Tools</a>';
 	}
 	echo '</p></aside>';
 }

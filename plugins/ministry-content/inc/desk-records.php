@@ -1143,7 +1143,7 @@ function ministry_desk_screen_users() {
 		}
 		echo '</tr>';
 	}
-	echo '</tbody></table></div><p class="mom-hint">Custom is set on the person, not as a shared role. Changing a preset role takes effect the next time they open a desk screen.</p></section></div><div class="mom-side-col"><section class="mom-side-card"><h2>Security</h2><ul class="mom-check"><li><span class="mom-ok">✓</span> Sign-in asks for a work email and a password</li><li><span class="mom-ok">✓</span> Wordfence handles firewall, login lockout, and optional two-factor</li><li><span class="mom-ok">✓</span> Accounts use ministry email addresses</li><li><span class="mom-ok">✓</span> Sessions end when the browser is closed</li><li><span class="mom-ok">✓</span> Leavers are disabled, never deleted — their work stays attributed</li></ul></section>';
+	echo '</tbody></table></div><p class="mom-hint">Custom is set on the person, not as a shared role. Changing a preset role takes effect the next time they open a desk screen.</p></section></div><div class="mom-side-col"><section class="mom-side-card"><h2>Security</h2><ul class="mom-check"><li><span class="mom-ok">✓</span> Sign-in asks for a work email and a password</li><li><span class="mom-ok">✓</span> Accounts use ministry email addresses</li><li><span class="mom-ok">✓</span> Sessions end when the browser is closed</li><li><span class="mom-ok">✓</span> Leavers are disabled, never deleted — their work stays attributed</li></ul></section>';
 	echo '<section class="mom-side-card"><h2>Activity log</h2>';
 	$log = array_reverse( (array) ministry_desk_meta()['log'] );
 	if ( ! $log ) {
