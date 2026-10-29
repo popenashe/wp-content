@@ -1,6 +1,6 @@
 <?php
 /**
- * Nav, legal pages, organogram, and extra public markup.
+ * Nav, legal pages, and extra public markup.
  *
  * @package MinistryContent
  */
@@ -21,7 +21,7 @@ function ministry_front_copy_routes() {
 	global $wp;
 	$path = trim( (string) $wp->request, '/' );
 	if ( 'about/structure' === $path ) {
-		wp_safe_redirect( home_url( '/about/#structure' ), 301 );
+		wp_safe_redirect( home_url( '/about/' ), 301 );
 		exit;
 	}
 	$map  = array(
@@ -83,7 +83,7 @@ function ministry_front_bind_more( $name, $body ) {
 	$body = ministry_front_entities_more( $body, $name );
 	$body = ministry_front_offices_more( $body, $name );
 	$body = ministry_front_services_more( $body, $name );
-	$body = ministry_front_about_organogram( $body, $name );
+	$body = ministry_front_strip_organogram( $body, $name );
 	return $body;
 }
 
@@ -967,52 +967,18 @@ function ministry_front_service_card_html( $post, $region = '' ) {
 }
 
 /**
- * Fill the About the ministry organogram from settings.
+ * Remove the organogram from About the ministry, including leftover stored copy.
  */
-function ministry_front_about_organogram( $body, $name ) {
+function ministry_front_strip_organogram( $body, $name ) {
 	if ( 'about' !== $name ) {
 		return $body;
 	}
-	$chart = ministry_front_organogram_html();
-	if ( str_contains( $body, 'class="org-chart"' ) ) {
-		$updated = preg_replace( '#<div class="org-chart"[^>]*>.*?</div>#s', $chart, $body, 1 );
-		return is_string( $updated ) ? $updated : $body;
+	$updated = preg_replace( '~<a class="pill" href="#structure">Organisational structure</a>~', '', $body );
+	if ( is_string( $updated ) ) {
+		$body = $updated;
 	}
-	$section  = '<section class="section" id="structure"><div class="wrap">';
-	$section .= '<p class="eyebrow">Organisation</p>';
-	$section .= '<h2>Organisational structure</h2>';
-	$section .= '<p class="muted" style="max-width:42rem">How the Ministry is organised, from the Minister through the Permanent Secretary to head-office departments and provincial mining offices.</p>';
-	$section .= $chart;
-	$section .= '</div></section>';
-	if ( ! str_contains( $body, 'href="#structure"' ) ) {
-		$body = str_replace(
-			'<a class="pill" href="#framework">',
-			'<a class="pill" href="#structure">Organisational structure</a><a class="pill" href="#framework">',
-			$body
-		);
-	}
-	$updated = preg_replace( '#<section class="section"[^>]*>\s*<div class="wrap grid g2"#', $section . '$0', $body, 1 );
+	$updated = preg_replace( '#<section class="section"[^>]*\bid="structure"[^>]*>.*?</section>#s', '', $body, 1 );
 	return is_string( $updated ) ? $updated : $body;
-}
-
-/**
- * Organogram boxes from settings.
- */
-function ministry_front_organogram_html() {
-	$rows = isset( ministry_settings()['organogram'] ) && is_array( ministry_settings()['organogram'] ) ? ministry_settings()['organogram'] : array();
-	$html = '<div class="org-chart" style="margin-top:24px">';
-	foreach ( $rows as $row ) {
-		if ( ! is_array( $row ) || empty( $row['title'] ) ) {
-			continue;
-		}
-		$html .= '<div class="org-box"><strong>' . esc_html( (string) $row['title'] ) . '</strong><span>' . esc_html( isset( $row['holder'] ) ? (string) $row['holder'] : '' ) . '</span>';
-		if ( ! empty( $row['parent'] ) ) {
-			$html .= '<em>' . esc_html( sprintf( /* translators: reports-to title */ __( 'Reports to %s', 'ministry-content' ), (string) $row['parent'] ) ) . '</em>';
-		}
-		$html .= '</div>';
-	}
-	$html .= '</div>';
-	return $html;
 }
 
 /**
@@ -1031,7 +997,6 @@ function ministry_front_sitemap_html() {
 	foreach ( array( 'privacy' => 'Privacy & data protection', 'accessibility' => 'Accessibility statement', 'information' => 'Access to information', 'terms' => 'Terms of use', 'verify' => 'How to verify official sites' ) as $path => $label ) {
 		$html .= '<li><a href="' . esc_url( home_url( '/' . $path . '/' ) ) . '">' . esc_html( $label ) . '</a></li>';
 	}
-	$html .= '<li><a href="' . esc_url( home_url( '/about/#structure' ) ) . '">Organisational structure</a></li>';
 	$html .= '</ul>';
 	return $html;
 }

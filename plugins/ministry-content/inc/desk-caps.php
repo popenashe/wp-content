@@ -23,7 +23,7 @@ function ministry_desk_cap_catalog() {
 		'albums'         => array( 'label' => 'Photo albums', 'group' => 'areas' ),
 		'agencies'       => array( 'label' => 'Agencies & Investments', 'group' => 'areas' ),
 		'enquiries'      => array( 'label' => 'Enquiries & Forms', 'group' => 'areas' ),
-		'people'         => array( 'label' => 'Leadership, departments, offices, and structure', 'group' => 'areas' ),
+		'people'         => array( 'label' => 'Leadership, departments, and offices', 'group' => 'areas' ),
 		'facts'          => array( 'label' => 'Website facts and settings', 'group' => 'areas' ),
 		'publish'        => array( 'label' => 'Publish and approve', 'group' => 'actions' ),
 		'notice_numbers' => array( 'label' => 'Change notice numbers', 'group' => 'actions' ),

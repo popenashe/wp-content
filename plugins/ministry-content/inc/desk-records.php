@@ -774,7 +774,7 @@ function ministry_desk_screen_person() {
 	if ( ! empty( $leader['name'] ) ) {
 		$person_preview .= '#' . rawurlencode( sanitize_title( (string) $leader['name'] ) );
 	}
-	echo '<section class="mom-side-card"><h2>This person appears on</h2><p><a href="' . esc_url( $person_preview ) . '" target="_blank" rel="noopener">The Ministry</a></p><p><a href="' . esc_url( home_url( '/about/#structure' ) ) . '" target="_blank" rel="noopener">About the ministry</a></p><p><a href="' . esc_url( home_url( '/contact/' ) ) . '" target="_blank" rel="noopener">Contact</a></p>' . ministry_desk_preview_action( $person_preview ) . '</section>';
+	echo '<section class="mom-side-card"><h2>This person appears on</h2><p><a href="' . esc_url( $person_preview ) . '" target="_blank" rel="noopener">The Ministry</a></p><p><a href="' . esc_url( home_url( '/contact/' ) ) . '" target="_blank" rel="noopener">Contact</a></p>' . ministry_desk_preview_action( $person_preview ) . '</section>';
 	echo '</div></div></form>';
 }
 

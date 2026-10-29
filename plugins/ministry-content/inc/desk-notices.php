@@ -281,7 +281,6 @@ function ministry_desk_sidebar() {
 				array( 'label' => 'Leadership', 'args' => array() ),
 				array( 'label' => 'Departments', 'args' => array( 'view' => 'departments' ) ),
 				array( 'label' => 'Offices', 'args' => array( 'view' => 'offices' ) ),
-				array( 'label' => 'Organisational structure', 'args' => array( 'view' => 'structure' ) ),
 				array( 'label' => 'Homepage order', 'args' => array( 'view' => 'leadership' ) ),
 			),
 		),

@@ -829,10 +829,6 @@ function ministry_desk_router() {
 		ministry_desk_screen_leadership();
 		return;
 	}
-	if ( 'mom-people' === $page && 'structure' === $view ) {
-		ministry_desk_screen_structure();
-		return;
-	}
 	if ( 'mom-people' === $page && 'department' === $view ) {
 		ministry_desk_screen_department();
 		return;

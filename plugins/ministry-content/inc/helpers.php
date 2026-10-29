@@ -826,7 +826,7 @@ function ministry_public_wp_page_url( $post ) {
 		'parastatals'               => 'parastatals',
 	);
 	if ( 'structure' === $slug || 'about/structure' === $path ) {
-		return home_url( '/about/#structure' );
+		return home_url( '/about/' );
 	}
 	if ( isset( $map[ $slug ] ) ) {
 		return function_exists( 'ministry_site_url' ) ? ministry_site_url( $map[ $slug ] ) : home_url( '/' . $map[ $slug ] . '/' );

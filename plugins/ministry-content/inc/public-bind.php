@@ -112,7 +112,7 @@ function ministry_front_bind( $name, $body ) {
 		$body = ministry_front_sort_lists( $body, $name );
 		$body = ministry_front_bind_more( $name, $body );
 	} else {
-		$body = ministry_front_about_organogram( $body, $name );
+		$body = ministry_front_strip_organogram( $body, $name );
 	}
 	if ( 'offices' === $name ) {
 		$body = ministry_front_office_maps( $body );
