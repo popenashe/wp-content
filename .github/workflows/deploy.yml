@@ -1,8 +1,9 @@
 name: Deploy theme and plugins
 
+# Retrigger deploy after FTP secrets were added.
 on:
   push:
-    branches: [master]
+    branches: [main]
 
 jobs:
   deploy:
