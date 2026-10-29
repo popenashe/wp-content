@@ -57,7 +57,7 @@ add_action(
 		// Featured news photos are portrait; stop their natural height from stretching the card.
 		$css = '.featured img{contain:size}';
 		if ( ! ministry_downloads_on() ) {
-			$css .= 'a[aria-disabled="true"]{cursor:not-allowed;opacity:.55}';
+			$css .= 'a[aria-disabled="true"]{cursor:not-allowed;opacity:.55;pointer-events:none}';
 		}
 		if ( ministry_site_assistant_config() ) {
 			$css .= '#knowbot-widget-root:not(.is-open) iframe{opacity:0!important;visibility:hidden!important;pointer-events:none!important;width:0!important;height:0!important}'
@@ -156,22 +156,47 @@ function ministry_site_links( $html ) {
 }
 
 /**
- * Turn links to files in site/documents/ into inert text while downloads are switched off.
+ * Disable public file links while downloads are switched off.
  *
- * @param string $html Design markup.
+ * @param string $html Page markup.
  */
 function ministry_site_downloads( $html ) {
 	if ( ministry_downloads_on() ) {
 		return $html;
 	}
-	return preg_replace_callback(
-		'/<a\b([^>]*)\bhref="documents\/[^"]*"([^>]*)>/i',
-		function ( $m ) {
-			$attrs = preg_replace( '/\s+(download|target="[^"]*"|rel="[^"]*")/i', '', $m[1] . $m[2] );
-			return '<a' . rtrim( $attrs ) . ' aria-disabled="true" title="' . esc_attr__( 'Downloads are currently unavailable', 'ministry-mines' ) . '">';
+	$title = esc_attr__( 'Downloads are currently unavailable', 'ministry-mines' );
+	$out   = preg_replace_callback(
+		'/<a\b([^>]*)>/i',
+		function ( $m ) use ( $title ) {
+			$attrs = $m[1];
+			$href  = '';
+			if ( preg_match( '/\bhref="([^"]*)"/i', $attrs, $href_m ) ) {
+				$href = $href_m[1];
+			}
+			$path          = strtolower( (string) wp_parse_url( $href, PHP_URL_PATH ) );
+			$is_download   = (bool) preg_match( '/(?:^|\s)download(?:\s|=|$)/i', $attrs );
+			$is_file       = (bool) preg_match( '/\.(?:pdf|docx?|xlsx?|zip)$/', $path );
+			$is_documents  = (bool) preg_match( '#(?:^|/)documents/#', $path );
+			if ( ! $is_download && ! $is_file && ! $is_documents ) {
+				return $m[0];
+			}
+			$attrs = preg_replace( '/\s+(download|target|rel)(="[^"]*")?/i', '', $attrs );
+			if ( preg_match( '/\bhref="/i', $attrs ) ) {
+				$attrs = preg_replace( '/\bhref="[^"]*"/i', 'href="#"', $attrs );
+			} else {
+				$attrs .= ' href="#"';
+			}
+			if ( ! preg_match( '/aria-disabled=/i', $attrs ) ) {
+				$attrs .= ' aria-disabled="true"';
+			}
+			if ( ! preg_match( '/\btitle=/i', $attrs ) ) {
+				$attrs .= ' title="' . $title . '"';
+			}
+			return '<a' . $attrs . '>';
 		},
 		$html
 	);
+	return is_string( $out ) ? $out : $html;
 }
 
 /**
@@ -186,7 +211,7 @@ function ministry_site_document( $name ) {
 	$body = preg_match( '#<body[^>]*>(.*)</body>#s', $html, $m ) ? $m[1] : '';
 	return array(
 		'head' => ministry_site_links( $head ),
-		'body' => ministry_site_links( ministry_site_downloads( $body ) ),
+		'body' => ministry_site_links( $body ),
 	);
 }
 
@@ -198,6 +223,7 @@ function ministry_site_document( $name ) {
  */
 function ministry_site_output( $head, $body ) {
 	$body = ministry_site_assistant_links( $body );
+	$body = ministry_site_downloads( $body );
 	?><!doctype html>
 <html lang="en">
 <head>

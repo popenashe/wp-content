@@ -1285,19 +1285,9 @@ function ministry_desk_screen_facts() {
 	echo '<p class="mom-hint">Office cards show an OpenFreeMap preview of the street address. Clicking the thumbnail opens that same address in Google Maps.</p>';
 	echo '</section>';
 	echo '<section class="mom-card" id="downloads"><h2>Downloads</h2>';
-	ministry_desk_field(
-		'PDF files on the public site',
-		'downloadsEnabled',
-		isset( $settings['downloadsEnabled'] ) ? (string) $settings['downloadsEnabled'] : '1',
-		array(
-			'type'    => 'select',
-			'options' => array(
-				'1' => 'On — Resource files and profile PDFs download',
-				'0' => 'Off — download links stay disabled',
-			),
-		)
-	);
-	echo '</section></div>';
+	$downloads_on = ( isset( $settings['downloadsEnabled'] ) ? (string) $settings['downloadsEnabled'] : '1' ) === '1';
+	echo '<label class="mom-toggle"><input type="checkbox" name="downloadsEnabled" value="1" ' . checked( $downloads_on, true, false ) . '> Allow PDF downloads on the public site</label>';
+	echo '<p class="mom-hint">When this is off, download buttons stay visible but do not start a file.</p></section></div>';
 	echo '<div class="mom-side-col"><section class="mom-side-card"><h2>Where these appear</h2><p>Figures: Home. Phone and email: header, footer, Contact. Hours: Offices, Contact. Assistant: every public page.</p></section>';
 	echo '<section class="mom-side-card"><h2>Who can edit</h2><p>Administrators and the Communications Director. Every change is logged with name and time.</p>';
 	if ( ministry_desk_can( 'users' ) ) {

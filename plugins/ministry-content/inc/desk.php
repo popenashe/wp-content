@@ -125,10 +125,8 @@ function ministry_desk_assets() {
 	wp_enqueue_style( 'ministry-desk-fonts', 'https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap', array(), null );
 	wp_enqueue_style( 'ministry-desk', MINISTRY_CONTENT_URL . 'assets/desk.css', array(), (string) filemtime( $css ) );
 	wp_enqueue_script( 'jquery-ui-sortable' );
-	wp_enqueue_style( 'imgareaselect' );
-	wp_enqueue_script( 'imgareaselect' );
 	wp_enqueue_media();
-	wp_enqueue_script( 'ministry-desk', MINISTRY_CONTENT_URL . 'assets/desk.js', array( 'jquery', 'jquery-ui-sortable', 'imgareaselect' ), (string) filemtime( $js ), true );
+	wp_enqueue_script( 'ministry-desk', MINISTRY_CONTENT_URL . 'assets/desk.js', array( 'jquery', 'jquery-ui-sortable' ), (string) filemtime( $js ), true );
 	wp_localize_script(
 		'ministry-desk',
 		'ministryDesk',
@@ -158,12 +156,26 @@ function ministry_desk_crop_image() {
 		wp_send_json_error( array( 'message' => 'Choose an area to crop.' ), 400 );
 	}
 	require_once ABSPATH . 'wp-admin/includes/image.php';
+	$path = get_attached_file( $id );
+	if ( ! $path || ! is_readable( $path ) ) {
+		wp_send_json_error( array( 'message' => 'Original image is missing.' ), 400 );
+	}
+	$size = getimagesize( $path );
+	if ( is_array( $size ) ) {
+		$iw = (int) $size[0];
+		$ih = (int) $size[1];
+		$x  = max( 0, min( $x, max( 0, $iw - 1 ) ) );
+		$y  = max( 0, min( $y, max( 0, $ih - 1 ) ) );
+		$w  = max( 8, min( $w, $iw - $x ) );
+		$h  = max( 8, min( $h, $ih - $y ) );
+	}
 	$max = 1600;
 	$dw  = $w > $max ? $max : $w;
 	$dh  = (int) round( $h * ( $dw / $w ) );
 	$file = wp_crop_image( $id, $x, $y, $w, $h, $dw, $dh );
 	if ( ! $file || is_wp_error( $file ) ) {
-		wp_send_json_error( array( 'message' => 'Crop failed.' ), 500 );
+		$detail = is_wp_error( $file ) ? $file->get_error_message() : 'Crop failed.';
+		wp_send_json_error( array( 'message' => $detail ), 500 );
 	}
 	$filetype = wp_check_filetype( basename( $file ), null );
 	$parent   = wp_get_post_parent_id( $id );

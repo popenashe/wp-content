@@ -3,6 +3,7 @@
     var picker = wp.media(options);
     picker.on("select", function () {
       var selection = picker.state().get("selection");
+      picker.close();
       onSelect(selection);
     });
     picker.open();
@@ -135,11 +136,18 @@
 
   function applyPick(button, file) {
     var target = $("#" + button.data("target"));
-    var preview = button.closest(".mom-field, .mom-card, .mom-side-card").find(".mom-pick-preview").first();
+    var card = button.closest(".mom-field, .mom-card, .mom-side-card");
+    var preview = card.find(".mom-pick-preview").first();
     target.val(file.id);
     button.siblings(".mom-file-name").text(file.filename || file.title || "Selected");
-    if (preview.length && file.url) {
+    if (!file.url) return;
+    if (preview.length) {
       preview.html('<img src="' + file.url + '" alt="">');
+      return;
+    }
+    var existing = card.find("img").first();
+    if (existing.length) {
+      existing.attr("src", file.url);
     }
   }
 
@@ -154,8 +162,45 @@
     return "";
   }
 
+  function cropErrorMessage(res) {
+    if (res && res.data && res.data.message) return res.data.message;
+    return "Crop failed.";
+  }
+
+  function aspectRatio(raw) {
+    var value = aspectValue(raw);
+    if (!value) return 0;
+    var parts = value.split(":");
+    var w = parseFloat(parts[0]);
+    var h = parseFloat(parts[1]);
+    return w && h ? w / h : 0;
+  }
+
+  function clampCrop(sel, dw, dh, ratio) {
+    sel.w = Math.max(24, sel.w);
+    sel.h = Math.max(24, sel.h);
+    if (ratio) {
+      if (sel.w / sel.h > ratio) sel.h = sel.w / ratio;
+      else sel.w = sel.h * ratio;
+      if (sel.w > dw) {
+        sel.w = dw;
+        sel.h = dw / ratio;
+      }
+      if (sel.h > dh) {
+        sel.h = dh;
+        sel.w = dh * ratio;
+      }
+    } else {
+      sel.w = Math.min(sel.w, dw);
+      sel.h = Math.min(sel.h, dh);
+    }
+    sel.x = Math.max(0, Math.min(sel.x, dw - sel.w));
+    sel.y = Math.max(0, Math.min(sel.y, dh - sel.h));
+    return sel;
+  }
+
   function openCrop(file, aspect, done) {
-    if (!file || !file.url || typeof $.fn.imgAreaSelect !== "function") {
+    if (!file || !file.url) {
       done(file);
       return;
     }
@@ -166,77 +211,160 @@
         '<div class="mom-crop-stage"><div class="mom-crop-frame"><img alt=""></div></div>' +
         '<p class="mom-crop-error" hidden></p>' +
         '<div class="mom-crop-actions">' +
-        '<button type="button" class="mom-btn" data-crop-skip>Use full image</button>' +
+        '<button type="button" class="mom-btn" data-crop-skip>Cancel</button>' +
         '<button type="button" class="mom-btn mom-btn-primary" data-crop-apply>Crop and use</button>' +
         "</div></div></div>"
     );
     var img = modal.find("img");
-    var ias = null;
+    var frame = modal.find(".mom-crop-frame");
+    var box = $(
+      '<div class="mom-crop-box" hidden>' +
+        '<span data-handle="nw"></span><span data-handle="n"></span><span data-handle="ne"></span>' +
+        '<span data-handle="w"></span><span data-handle="e"></span>' +
+        '<span data-handle="sw"></span><span data-handle="s"></span><span data-handle="se"></span>' +
+        "</div>"
+    );
+    var started = false;
+    var applying = false;
+    var sel = { x: 0, y: 0, w: 0, h: 0 };
+    var ratio = aspectRatio(aspect);
+    frame.append(box);
     $("body").append(modal);
-    img.on("load", function () {
-      var ratio = aspectValue(aspect);
-      var options = {
-        handles: true,
-        persistent: true,
-        parent: modal.find(".mom-crop-frame"),
-        imageHeight: img[0].naturalHeight,
-        imageWidth: img[0].naturalWidth,
-        instance: true,
-      };
-      if (ratio) options.aspectRatio = ratio;
-      ias = img.imgAreaSelect(options);
-      var w = img.width();
-      var h = img.height();
-      var x2 = w;
-      var y2 = h;
+
+    function displaySize() {
+      var el = img.get(0);
+      return { dw: el.clientWidth, dh: el.clientHeight, nw: el.naturalWidth, nh: el.naturalHeight };
+    }
+
+    function renderBox() {
+      box.css({
+        left: sel.x + "px",
+        top: sel.y + "px",
+        width: sel.w + "px",
+        height: sel.h + "px",
+      });
+    }
+
+    function startSelect() {
+      var size = displaySize();
+      if (started || !size.nw || !size.nh || !size.dw || !size.dh) return;
+      started = true;
+      sel = { x: 0, y: 0, w: size.dw, h: size.dh };
       if (ratio) {
-        var parts = ratio.split(":");
-        var aw = parseFloat(parts[0]);
-        var ah = parseFloat(parts[1]);
-        if (w / h > aw / ah) {
-          x2 = Math.round(h * (aw / ah));
+        if (size.dw / size.dh > ratio) {
+          sel.w = size.dh * ratio;
+          sel.x = (size.dw - sel.w) / 2;
         } else {
-          y2 = Math.round(w * (ah / aw));
+          sel.h = size.dw / ratio;
+          sel.y = (size.dh - sel.h) / 2;
         }
       }
-      ias.setSelection(0, 0, x2, y2);
-      ias.setOptions({ show: true });
-      ias.update();
-    });
+      clampCrop(sel, size.dw, size.dh, ratio);
+      renderBox();
+      box.prop("hidden", false);
+    }
+
+    img.on("load", startSelect);
     img.attr("src", file.url);
+    if (img[0].complete) startSelect();
+
+    box.on("pointerdown", function (event) {
+      if (applying) return;
+      event.preventDefault();
+      var handle = event.target.getAttribute("data-handle") || "";
+      var startX = event.clientX;
+      var startY = event.clientY;
+      var orig = { x: sel.x, y: sel.y, w: sel.w, h: sel.h };
+      var pointer = event.originalEvent && event.originalEvent.pointerId;
+      if (event.target.setPointerCapture && pointer != null) {
+        event.target.setPointerCapture(pointer);
+      }
+
+      function onMove(ev) {
+        var dx = ev.clientX - startX;
+        var dy = ev.clientY - startY;
+        var size = displaySize();
+        if (!handle) {
+          sel.x = orig.x + dx;
+          sel.y = orig.y + dy;
+        } else {
+          var x1 = orig.x;
+          var y1 = orig.y;
+          var x2 = orig.x + orig.w;
+          var y2 = orig.y + orig.h;
+          if (handle.indexOf("w") !== -1) x1 = orig.x + dx;
+          if (handle.indexOf("e") !== -1) x2 = orig.x + orig.w + dx;
+          if (handle.indexOf("n") !== -1) y1 = orig.y + dy;
+          if (handle.indexOf("s") !== -1) y2 = orig.y + orig.h + dy;
+          var nextW = x2 - x1;
+          var nextH = y2 - y1;
+          if (ratio && nextW > 0 && nextH > 0) {
+            if (Math.abs(dx) * (1 / ratio) > Math.abs(dy)) {
+              nextH = nextW / ratio;
+              if (handle.indexOf("n") !== -1) y1 = y2 - nextH;
+              else y2 = y1 + nextH;
+            } else {
+              nextW = nextH * ratio;
+              if (handle.indexOf("w") !== -1) x1 = x2 - nextW;
+              else x2 = x1 + nextW;
+            }
+          }
+          sel.x = x1;
+          sel.y = y1;
+          sel.w = x2 - x1;
+          sel.h = y2 - y1;
+        }
+        clampCrop(sel, size.dw, size.dh, ratio);
+        renderBox();
+      }
+
+      function onUp() {
+        $(document).off("pointermove", onMove);
+        $(document).off("pointerup pointercancel", onUp);
+      }
+
+      $(document).on("pointermove", onMove);
+      $(document).on("pointerup pointercancel", onUp);
+    });
+
     function closeCrop() {
-      if (ias) ias.remove();
       modal.remove();
     }
     modal.on("click", "[data-crop-skip]", function () {
       closeCrop();
-      done(file);
     });
     modal.on("click", "[data-crop-apply]", function () {
-      if (!ias || !window.ministryDesk) {
+      if (applying) return;
+      var size = displaySize();
+      if (!started || !size.dw || !size.dh || !window.ministryDesk) {
         closeCrop();
         done(file);
         return;
       }
-      var sel = ias.getSelection();
-      if (!sel || sel.width < 8 || sel.height < 8) {
+      var x = Math.round(sel.x * size.nw / size.dw);
+      var y = Math.round(sel.y * size.nh / size.dh);
+      var w = Math.round(sel.w * size.nw / size.dw);
+      var h = Math.round(sel.h * size.nh / size.dh);
+      if (w < 8 || h < 8) {
         modal.find(".mom-crop-error").text("Choose an area to crop.").prop("hidden", false);
         return;
       }
-      var scaleX = (file.width || img[0].naturalWidth) / img.width();
-      var scaleY = (file.height || img[0].naturalHeight) / img.height();
+      applying = true;
+      modal.find("[data-crop-apply]").prop("disabled", true).text("Cropping…");
       $.post(window.ministryDesk.ajax, {
         action: "ministry_desk_crop",
         nonce: window.ministryDesk.cropNonce,
         id: file.id,
-        x: Math.round(sel.x1 * scaleX),
-        y: Math.round(sel.y1 * scaleY),
-        w: Math.round(sel.width * scaleX),
-        h: Math.round(sel.height * scaleY),
+        x: x,
+        y: y,
+        w: w,
+        h: h,
       })
         .done(function (res) {
           if (!res || !res.success || !res.data) {
-            modal.find(".mom-crop-error").text("Crop failed.").prop("hidden", false);
+            applying = false;
+            modal.find("[data-crop-apply]").prop("disabled", false).text("Crop and use");
+            modal.find(".mom-crop-error").text(cropErrorMessage(res)).prop("hidden", false);
             return;
           }
           closeCrop();
@@ -247,10 +375,23 @@
             title: res.data.filename,
           });
         })
-        .fail(function () {
-          modal.find(".mom-crop-error").text("Crop failed.").prop("hidden", false);
+        .fail(function (xhr) {
+          applying = false;
+          modal.find("[data-crop-apply]").prop("disabled", false).text("Crop and use");
+          var res = xhr && xhr.responseJSON;
+          modal.find(".mom-crop-error").text(cropErrorMessage(res)).prop("hidden", false);
         });
     });
+  }
+
+  function ensureCropButton(pick, file) {
+    if (pick.data("library") !== "image") return;
+    var crop = pick.siblings(".mom-crop-open");
+    if (!crop.length) {
+      crop = $('<button type="button" class="mom-btn mom-btn-small mom-crop-open">Crop</button>');
+      pick.after(crop);
+    }
+    if (file) crop.data("file", file);
   }
 
   $(document).on("click", ".mom-pick", function (event) {
@@ -260,21 +401,50 @@
     frame(
       {
         title: "Select file",
-        button: { text: isImage ? "Crop this image" : "Use this file" },
+        button: { text: isImage ? "Use this image" : "Use this file" },
         multiple: false,
         library: button.data("library") ? { type: button.data("library") } : undefined,
       },
       function (selection) {
         var file = selection.first().toJSON();
-        if (isImage) {
-          openCrop(file, button.data("aspect"), function (cropped) {
-            applyPick(button, cropped);
-          });
-          return;
-        }
         applyPick(button, file);
+        if (isImage) ensureCropButton(button, file);
       }
     );
+  });
+
+  $(document).on("click", ".mom-crop-open", function (event) {
+    event.preventDefault();
+    var crop = $(this);
+    var pick = crop.siblings(".mom-pick").first();
+    var file = crop.data("file");
+    function run(source) {
+      if (!source || !source.url) return;
+      openCrop(source, pick.data("aspect"), function (cropped) {
+        applyPick(pick, cropped);
+        crop.data("file", cropped);
+      });
+    }
+    if (file && file.url) {
+      run(file);
+      return;
+    }
+    var id = $("#" + pick.data("target")).val();
+    if (!id || !window.wp || !wp.media || !wp.media.attachment) return;
+    var att = wp.media.attachment(id);
+    att.fetch().done(function () {
+      run({
+        id: att.get("id"),
+        url: att.get("url"),
+        filename: att.get("filename"),
+      });
+    });
+  });
+
+  $(".mom-pick[data-library=image]").each(function () {
+    var pick = $(this);
+    var id = $("#" + pick.data("target")).val();
+    if (id) ensureCropButton(pick);
   });
 
   $(document).on("click", ".mom-add-photos", function (event) {

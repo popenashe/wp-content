@@ -113,7 +113,7 @@ function ministry_desk_editor( $name, $value, $placeholder = '' ) {
 	echo '<button type="button" data-cmd="h2" title="Heading">Heading</button>';
 	echo '<button type="button" data-cmd="ul" title="Bullet list">List</button>';
 	echo '<button type="button" data-cmd="link" title="Link">Link</button>';
-	echo '</div><span>No HTML needed</span></div>';
+	echo '</div></div>';
 	echo '<div class="mom-editor-surface" id="' . esc_attr( $id ) . '" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="' . esc_attr( $hint ) . '">' . $html . '</div>';
 	echo '<textarea class="mom-editor-html" name="' . esc_attr( $name ) . '" hidden>' . esc_textarea( $value ) . '</textarea></div>';
 }
